@@ -574,6 +574,43 @@ mod tests {
     }
 
     #[test]
+    fn terminal_results_serialize_with_frontend_discriminators_and_fields() {
+        let written = WriteImageResult::Written {
+            source_path: "/input/photo.jpg".into(),
+            output_path: "/output/photo.jpg".into(),
+            transformation: TransformationMetadata {
+                input_format: OutputFormat::Jpeg,
+                output_format: OutputFormat::Jpeg,
+                original_width: 100,
+                original_height: 50,
+                output_width: 100,
+                output_height: 50,
+                encoded_size_bytes: 400,
+                metadata_disposition: crate::imaging::transform::MetadataDisposition::Removed,
+            },
+            original_size_bytes: 1000,
+            output_size_bytes: 400,
+        };
+        let value = serde_json::to_value(written).unwrap();
+        assert_eq!(value["status"], "written");
+        assert_eq!(value["outputPath"], "/output/photo.jpg");
+        assert_eq!(value["originalSizeBytes"], 1000);
+        assert_eq!(value["outputSizeBytes"], 400);
+        assert_eq!(value["outputWidth"], 100);
+
+        let skipped = WriteImageResult::Skipped {
+            source_path: "/input/photo.jpg".into(),
+            output_path: "/output/photo.jpg".into(),
+            output_format: OutputFormat::Jpeg,
+            original_size_bytes: 1000,
+        };
+        let value = serde_json::to_value(skipped).unwrap();
+        assert_eq!(value["status"], "skipped");
+        assert_eq!(value["outputPath"], "/output/photo.jpg");
+        assert!(value.get("outputSizeBytes").is_none());
+    }
+
+    #[test]
     fn original_jpeg_output_normalizes_extension_to_jpg() {
         let directory = TestDirectory::new();
         let source = write_source(&directory.0, "photo.jpeg");

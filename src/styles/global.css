@@ -76,6 +76,27 @@ input:focus-visible {
   overflow-y: auto;
 }
 
+.interface-error {
+  width: min(100%, 520px);
+  margin: auto;
+  padding: 28px;
+  border: 1px solid #ded8cd;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 48%);
+  text-align: center;
+}
+
+.interface-error h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.interface-error p {
+  margin: 10px 0 20px;
+  color: #6e675d;
+  font-size: 13px;
+}
+
 .app-footer {
   justify-content: space-between;
   border-top: 1px solid #ded8cd;

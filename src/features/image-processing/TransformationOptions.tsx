@@ -17,9 +17,9 @@ import {
 import { isBatchSettingsValid, validateBatchSettings } from "./validation";
 import {
   compactOutputDirectory,
+  createConflictPolicyUpdate,
   createDefaultOutputSettings,
   isFutureProcessingReady,
-  type ConflictPolicy,
 } from "./output";
 import { createWriteImageRequest } from "./output";
 import {
@@ -318,11 +318,9 @@ export function TransformationOptions({
                 value={output.conflictPolicy}
                 disabled={isRunning}
                 onChange={(event) => {
+                  const updateConflictPolicy = createConflictPolicyUpdate(event.currentTarget.value);
                   invalidateResults();
-                  setOutput((current) => ({
-                    ...current,
-                    conflictPolicy: event.currentTarget.value as ConflictPolicy,
-                  }));
+                  setOutput(updateConflictPolicy);
                 }}
               >
                 <option value="createCopy">Create Copy</option>
@@ -396,7 +394,7 @@ export function TransformationOptions({
   );
 }
 
-function BatchResults({ summary, workflow }: { summary: ReturnType<typeof summarizeBatch>; workflow: WorkflowMode }) {
+export function BatchResults({ summary, workflow }: { summary: ReturnType<typeof summarizeBatch>; workflow: WorkflowMode }) {
   const sizeMessage = summary.sizeDifference === "saved"
     ? `${formatFileSize(summary.sizeDifferenceBytes)} saved (${summary.percentageDifference.toFixed(1)}%)`
     : summary.sizeDifference === "larger"

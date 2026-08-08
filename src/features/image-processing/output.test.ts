@@ -4,8 +4,10 @@ import { createCompressSettings, createConvertSettings } from "../workflows/work
 import {
   METADATA_BEHAVIOR_MESSAGE,
   createDefaultOutputSettings,
+  createConflictPolicyUpdate,
   createWriteImageRequest,
   isFutureProcessingReady,
+  parseWriteImageResult,
 } from "./output";
 
 describe("output settings", () => {
@@ -14,6 +16,16 @@ describe("output settings", () => {
       outputDirectory: null,
       conflictPolicy: "createCopy",
     });
+  });
+
+  it("captures a conflict selection before the browser clears the event target", () => {
+    let event: { currentTarget: { value: string } | null } = {
+      currentTarget: { value: "skip" },
+    };
+    const update = createConflictPolicyUpdate(event.currentTarget!.value);
+    event.currentTarget = null;
+
+    expect(update(createDefaultOutputSettings()).conflictPolicy).toBe("skip");
   });
 
   it("requires an output folder for future processing readiness", () => {
@@ -63,5 +75,18 @@ describe("output settings", () => {
   it("states the current metadata behavior truthfully", () => {
     expect(createDefaultBatchSettings().removeMetadata).toBe(true);
     expect(METADATA_BEHAVIOR_MESSAGE).toContain("Metadata is removed");
+  });
+
+  it("parses skipped results without written-only metadata", () => {
+    expect(parseWriteImageResult({
+      status: "skipped", sourcePath: "/input/photo.jpg", outputPath: "/output/photo.jpg", outputFormat: "jpeg",
+    })).toEqual({
+      status: "skipped", sourcePath: "/input/photo.jpg", outputPath: "/output/photo.jpg", outputFormat: "jpeg",
+    });
+  });
+
+  it("rejects malformed written results before they reach React rendering", () => {
+    expect(() => parseWriteImageResult({ status: "written", outputPath: "/output/photo.jpg" }))
+      .toThrow("invalid processing result");
   });
 });

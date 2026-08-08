@@ -5,6 +5,7 @@ import type {
   WriteImageRequest,
   WriteImageResult,
 } from "../../features/image-processing/output";
+import { parseWriteImageResult } from "../../features/image-processing/output";
 
 export async function writeTransformedImage(
   request: WriteImageRequest,
@@ -12,11 +13,26 @@ export async function writeTransformedImage(
 ): Promise<WriteImageResult> {
   try {
     const channel = new Channel<ProcessingProgress>();
-    channel.onmessage = (progress) => onProgress?.(progress);
-    return await invoke<WriteImageResult>("write_transformed_image", { request, onProgress: channel });
+    channel.onmessage = (progress) => {
+      if (isProcessingProgress(progress)) onProgress?.(progress);
+    };
+    const result = await invoke<unknown>("write_transformed_image", { request, onProgress: channel });
+    return parseWriteImageResult(result);
   } catch (error) {
     throw normalizeWriteImageError(error);
   }
+}
+
+const stages = new Map([
+  ["preparing", 5], ["decoding", 20], ["optimizing", 45],
+  ["encoding", 70], ["saving", 90], ["completed", 100],
+]);
+
+function isProcessingProgress(value: unknown): value is ProcessingProgress {
+  if (typeof value !== "object" || value === null) return false;
+  const progress = value as Partial<ProcessingProgress>;
+  return typeof progress.path === "string" && typeof progress.stage === "string" &&
+    stages.get(progress.stage) === progress.percent;
 }
 
 export async function preflightOutputDirectory(directory: string): Promise<void> {

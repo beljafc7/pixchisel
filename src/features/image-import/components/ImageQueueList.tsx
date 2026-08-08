@@ -57,7 +57,7 @@ export function ImageQueueList({ items, onRemove, processingStates, disabled }: 
   );
 }
 
-function ProcessingDetail({ state }: { state: FileProcessingState | undefined }) {
+export function ProcessingDetail({ state }: { state: FileProcessingState | undefined }) {
   if (!state || state.status === "ready") return null;
   switch (state.status) {
     case "processing":

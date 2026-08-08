@@ -7,7 +7,7 @@ import { TransformationOptions } from "../image-processing/TransformationOptions
 import { validQueueSize } from "./queue";
 import { useImageImportQueue } from "./useImageImportQueue";
 import { useNativeFileDrop } from "./useNativeFileDrop";
-import type { FileProcessingState } from "../image-processing/batch";
+import { isTerminalState, type FileProcessingState } from "../image-processing/batch";
 import { shouldConfirmWorkflowChange, workflowCopy, type WorkflowMode } from "../workflows/workflow";
 
 const imageFilters = [
@@ -62,7 +62,10 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
   }
 
   function updateItemState(path: string, state: FileProcessingState) {
-    setProcessingStates((current) => ({ ...current, [path]: state }));
+    setProcessingStates((current) => {
+      if (state.status === "processing" && isTerminalState(current[path])) return current;
+      return { ...current, [path]: state };
+    });
   }
 
   function removeQueueItemAndState(id: string) {

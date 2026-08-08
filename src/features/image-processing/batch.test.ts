@@ -144,7 +144,7 @@ describe("batch summary", () => {
   it("counts terminal states and positive savings", () => {
     const states: FileProcessingState[] = [
       { status: "written", result: written("a", 100, 40) as Extract<WriteImageResult, { status: "written" }> },
-      { status: "skipped", result: { status: "skipped", sourcePath: "b", outputPath: "out", outputFormat: "png", originalSizeBytes: 20 } },
+      { status: "skipped", result: { status: "skipped", sourcePath: "b", outputPath: "out", outputFormat: "png" } },
       { status: "failed", error: { code: "writeFailed", message: "Failed." } },
       { status: "cancelled" },
     ];
@@ -153,6 +153,14 @@ describe("batch summary", () => {
       originalBytes: 100, outputBytes: 40, sizeDifferenceBytes: 60,
       sizeDifference: "saved", percentageDifference: 60,
     });
+  });
+
+  it("handles all-skipped completion without written-only metadata", () => {
+    const summary = summarizeBatch([
+      { status: "skipped", result: { status: "skipped", sourcePath: "a", outputPath: "out/a", outputFormat: "jpeg" } },
+      { status: "skipped", result: { status: "skipped", sourcePath: "b", outputPath: "out/b", outputFormat: "png" } },
+    ]);
+    expect(summary).toMatchObject({ total: 2, written: 0, skipped: 2, originalBytes: 0, outputBytes: 0 });
   });
 
   it("reports larger output and handles zero original bytes", () => {
