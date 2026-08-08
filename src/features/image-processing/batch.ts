@@ -2,9 +2,17 @@ import type { WriteImageError, WriteImageResult } from "./output";
 
 export const BATCH_CONCURRENCY = 2;
 
+export type ProcessingStage = "preparing" | "decoding" | "optimizing" | "encoding" | "saving" | "completed";
+
+export interface ProcessingProgress {
+  path: string;
+  stage: ProcessingStage;
+  percent: 5 | 20 | 45 | 70 | 90 | 100;
+}
+
 export type FileProcessingState =
   | { status: "ready" }
-  | { status: "processing" }
+  | { status: "processing"; stage: ProcessingStage; percent: number }
   | { status: "written"; result: Extract<WriteImageResult, { status: "written" }> }
   | { status: "skipped"; result: Extract<WriteImageResult, { status: "skipped" }> }
   | { status: "failed"; error: WriteImageError }
@@ -46,7 +54,7 @@ export async function runBoundedBatch(
       if (index >= paths.length) return;
       nextIndex += 1;
       const path = paths[index];
-      onState(path, { status: "processing" });
+      onState(path, { status: "processing", stage: "preparing", percent: 5 });
       try {
         const result = await process(path);
         const state: TerminalFileState =
@@ -142,6 +150,10 @@ export function isTerminalState(state: FileProcessingState | undefined): boolean
 export function retainQueuedBatchPaths(batchPaths: string[], queuePaths: string[]): string[] {
   const queued = new Set(queuePaths);
   return batchPaths.filter((path) => queued.has(path));
+}
+
+export function processingStateFromProgress(progress: ProcessingProgress): FileProcessingState {
+  return { status: "processing", stage: progress.stage, percent: progress.percent };
 }
 
 function normalizeWriteError(error: unknown): WriteImageError {

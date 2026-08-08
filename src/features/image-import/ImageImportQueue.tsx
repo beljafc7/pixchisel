@@ -8,6 +8,7 @@ import { validQueueSize } from "./queue";
 import { useImageImportQueue } from "./useImageImportQueue";
 import { useNativeFileDrop } from "./useNativeFileDrop";
 import type { FileProcessingState } from "../image-processing/batch";
+import { shouldConfirmWorkflowChange, workflowCopy, type WorkflowMode } from "../workflows/workflow";
 
 const imageFilters = [
   {
@@ -16,7 +17,7 @@ const imageFilters = [
   },
 ];
 
-export function ImageImportQueue() {
+export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: WorkflowMode; onChangeWorkflow: () => void }) {
   const [processingStates, setProcessingStates] = useState<Record<string, FileProcessingState>>({});
   const [isBatchRunning, setIsBatchRunning] = useState(false);
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
@@ -80,11 +81,24 @@ export function ImageImportQueue() {
     requestAnimationFrame(() => selectImagesButton.current?.focus());
   }
 
+  function changeWorkflow() {
+    if (
+      shouldConfirmWorkflowChange(queue.length) &&
+      !window.confirm("Changing action will clear the current image queue.")
+    ) return;
+    clearQueueAndState();
+    onChangeWorkflow();
+  }
+
   const isEmpty = queue.length === 0;
   const totalSize = validQueueSize(queue);
 
   return (
     <section className={`import-workspace${isEmpty ? " import-workspace--empty" : ""}`} aria-label={isEmpty ? "Import images" : undefined} aria-labelledby={isEmpty ? undefined : "queue-title"}>
+      <div className="workflow-workspace__heading">
+        <button className="text-button" type="button" onClick={changeWorkflow} disabled={isBatchRunning}>← Change Action</button>
+        <strong>{workflowCopy[workflow].title}</strong>
+      </div>
       {isEmpty ? (
         <>
         <ImportDropZone
@@ -102,7 +116,7 @@ export function ImageImportQueue() {
       <div className="queue-header">
         <div>
           <p className="welcome__eyebrow">Image queue</p>
-          <h1 id="queue-title">Ready to chisel</h1>
+          <h1 id="queue-title">{workflowCopy[workflow].title}</h1>
         </div>
         <div className="queue-header__actions">
           <ImportDropZone
@@ -142,6 +156,7 @@ export function ImageImportQueue() {
       )}
       <div className="options-container" hidden={isEmpty}>
       <TransformationOptions
+        workflow={workflow}
         readyPaths={queue.filter((item) => item.status === "ready").map((item) => item.path)}
         queuePaths={queue.map((item) => item.id)}
         processingStates={processingStates}

@@ -61,12 +61,17 @@ function ProcessingDetail({ state }: { state: FileProcessingState | undefined })
   if (!state || state.status === "ready") return null;
   switch (state.status) {
     case "processing":
-      return <span className="processing-detail processing-detail--processing">Processing…</span>;
+      return (
+        <span className="processing-detail processing-detail--processing">
+          <span>Chiseling · {stageLabel(state.stage)} {state.percent}%</span>
+          <progress value={state.percent} max={100} aria-label={`${stageLabel(state.stage)} ${state.percent}%`} />
+        </span>
+      );
     case "written": {
       const filename = state.result.outputPath.split(/[\\/]/).pop() ?? state.result.outputPath;
       return (
         <span className="processing-detail processing-detail--written" title={state.result.outputPath}>
-          Written · {filename} · {formatFileSize(state.result.originalSizeBytes)} → {formatFileSize(state.result.outputSizeBytes)}
+          Completed · {filename} · {formatFileSize(state.result.originalSizeBytes)} → {formatFileSize(state.result.outputSizeBytes)}{sizeChange(state.result.originalSizeBytes, state.result.outputSizeBytes)}
         </span>
       );
     }
@@ -77,4 +82,14 @@ function ProcessingDetail({ state }: { state: FileProcessingState | undefined })
     case "cancelled":
       return <span className="processing-detail processing-detail--cancelled">Cancelled</span>;
   }
+}
+
+function stageLabel(stage: Extract<FileProcessingState, { status: "processing" }>["stage"]): string {
+  return stage[0].toUpperCase() + stage.slice(1);
+}
+
+function sizeChange(original: number, output: number): string {
+  if (original === 0 || original === output) return "";
+  const percentage = (Math.abs(original - output) / original) * 100;
+  return output < original ? ` · ${percentage.toFixed(1)}% smaller` : ` · ${percentage.toFixed(1)}% larger`;
 }

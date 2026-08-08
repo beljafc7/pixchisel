@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultBatchSettings } from "./settings";
+import { createCompressSettings, createConvertSettings } from "../workflows/workflow";
 import {
   METADATA_BEHAVIOR_MESSAGE,
   createDefaultOutputSettings,
@@ -46,6 +47,17 @@ describe("output settings", () => {
       settings,
       conflictPolicy: "skip",
     });
+  });
+
+  it("preserves every conflict policy through workflow-generated requests", () => {
+    for (const conflictPolicy of ["createCopy", "overwrite", "skip"] as const) {
+      for (const settings of [createCompressSettings("strong"), createConvertSettings("webp")]) {
+        expect(createWriteImageRequest("/images/photo.jpg", settings, {
+          outputDirectory: "/output",
+          conflictPolicy,
+        })).toMatchObject({ conflictPolicy, settings });
+      }
+    }
   });
 
   it("states the current metadata behavior truthfully", () => {

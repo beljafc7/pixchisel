@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { ProcessingProgress } from "../../features/image-processing/batch";
 import type {
   WriteImageError,
   WriteImageRequest,
@@ -7,9 +8,12 @@ import type {
 
 export async function writeTransformedImage(
   request: WriteImageRequest,
+  onProgress?: (progress: ProcessingProgress) => void,
 ): Promise<WriteImageResult> {
   try {
-    return await invoke<WriteImageResult>("write_transformed_image", { request });
+    const channel = new Channel<ProcessingProgress>();
+    channel.onmessage = (progress) => onProgress?.(progress);
+    return await invoke<WriteImageResult>("write_transformed_image", { request, onProgress: channel });
   } catch (error) {
     throw normalizeWriteImageError(error);
   }

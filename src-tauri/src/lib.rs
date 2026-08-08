@@ -3,13 +3,13 @@ mod filesystem;
 mod imaging;
 
 pub use filesystem::{
-    write_transformed_image, ConflictPolicy, WriteImageError, WriteImageErrorCode,
-    WriteImageRequest, WriteImageResult,
+    write_transformed_image, ConflictPolicy, ProcessingProgress, WriteImageError,
+    WriteImageErrorCode, WriteImageRequest, WriteImageResult,
 };
 pub use imaging::transform::{
     transform_image, BatchSettings, EncodedTransformation, MetadataDisposition, OutputFormat,
-    ResizeMode, ResizeSettings, TransformError, TransformationMetadata, ValidationError,
-    ValidationErrorCode,
+    ProcessingStage, ResizeMode, ResizeSettings, TransformError, TransformationMetadata,
+    ValidationError, ValidationErrorCode,
 };
 
 use tauri::Manager;

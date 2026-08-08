@@ -32,13 +32,15 @@ such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
 
 ## V1 workflow
 
-1. The user adds one or more supported images with drag and drop or a file picker.
-2. PixChisel displays each file's thumbnail, name, dimensions, format, and size.
-3. The user chooses output format, compression, resize, metadata, destination,
-   and naming conflict options.
+1. The user chooses Compress, Convert, or Resize.
+2. The user adds supported images with drag and drop or a file picker.
+3. PixChisel shows only settings relevant to that workflow, plus shared output controls.
 4. The user starts the batch with a clearly labelled Chisel action.
-5. PixChisel reports per-file and overall progress and allows cancellation.
-6. PixChisel displays a result summary and makes the output location easy to open.
+5. PixChisel reports real per-image pipeline stages and allows cancellation.
+6. PixChisel displays workflow-specific results and makes the output location easy to open.
+
+Changing action is session-only and requires confirmation when it would clear a
+loaded queue. All workflows adapt into the same native `BatchSettings` engine.
 
 ## Functional requirements
 
@@ -57,33 +59,27 @@ such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
 - Apply available orientation metadata to thumbnails, preserve transparency, and
   never crop or upscale thumbnail content.
 
-V1 accepts JPEG/JPG, PNG, and WebP input. The decoded file signature, rather than
+V1 accepts JPEG/JPG, PNG, and WebP input. BMP remains unsupported. The decoded file signature, rather than
 the filename extension alone, determines whether an input is supported. Output
 formats are fixed below.
 
-### Output format
+### Convert
 
-- Keep original format
-- JPEG
-- PNG
-- WebP
-
-Format-specific controls should appear only when meaningful. Transparent input
-converted to JPEG uses a white background by default; the UI should communicate
-that behavior where it affects the result.
+Convert exposes JPEG, PNG, and WebP targets only. It applies no resize and uses
+internal quality 92 for JPEG and WebP to prioritize visual fidelity. PNG is
+lossless. Transparent pixels converted to JPEG use a white background.
 
 Transformation settings are batch-level and session-only. The Phase 1.4 defaults
 are keep original format, quality 82, no resize, no upscaling, and metadata
 preservation. Settings are intentionally not persisted between launches.
 
-### Compression
+### Compress
 
-- Provide a quality control for lossy output formats.
-- Present the control in understandable terms while keeping encoder-specific
-  details out of the primary interface.
-- Quality accepts whole numbers from 1 through 100 and is active for JPEG and
-  WebP. It is disabled for PNG and keep-original output. JPEG and WebP map this
-  value to their lossy encoders; exact sizes are intentionally not promised.
+Compress preserves source format and offers Standard, Strong, and Maximum.
+JPEG and WebP map these to internal qualities 82, 65, and 45. Keep-original means
+original format, not original bytes. PNG remains lossless; because the current
+encoder has no effort control, all presets use the same safe PNG encoding rather
+than implying lossy quality differences.
 
 ### Resize
 
@@ -93,6 +89,8 @@ preservation. Settings are intentionally not persisted between launches.
 - Always preserve aspect ratio in V1.
 - Never produce zero or invalid dimensions.
 - Do not upscale by default.
+- Preserve input format and use internal quality 92 for JPEG and WebP. PNG
+  remains lossless.
 - Dimension values accept whole numbers from 1 through 32,768 pixels. Percentage
   accepts whole numbers from 1 through 1,000. These conservative UI limits keep
   future native requests bounded; Rust must validate them again before processing.
@@ -116,7 +114,7 @@ cannot honor.
 ### Batch processing
 
 - Apply configured options to all files in the batch.
-- Display progress for every file and for the batch overall.
+- Display stage progress for every file and a compact batch total.
 - Allow cancellation and clearly distinguish completed, cancelled, skipped, and
   failed files.
 - Continue past an individual failure where safe.
@@ -130,6 +128,11 @@ cannot honor.
   is active.
 - Allow failed and cancelled items to be retried without reprocessing written or
   skipped items.
+
+Per-image milestones are Preparing 5%, Decoding 20%, Optimizing 45%, Encoding
+70%, Saving 90%, and Completed 100%. They are real pipeline boundaries, not ETA
+or time estimates. Skipped files never report false completion, and work not
+started after cancellation becomes Cancelled.
 
 ### Output
 

@@ -90,6 +90,18 @@ performed.
   batches and destination filesystems. **macOS partially complete; Windows and
   removable-drive testing remain.**
 
+### Phase 2.5 — Workflow architecture
+
+- Add session-level Compress, Convert, and Resize selection before import.
+  **Complete.**
+- Adapt workflow controls into the shared native settings engine. **Complete.**
+- Replace numeric compression quality with Standard, Strong, and Maximum.
+  **Complete.**
+- Fix original-format JPEG/WebP quality resolution. **Complete.**
+- Add typed native per-image stage milestones. **Complete.**
+- Revalidate create-copy, overwrite, and skip across serialized workflow
+  settings. **Automated coverage complete; desktop click-through QA remains.**
+
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.
 

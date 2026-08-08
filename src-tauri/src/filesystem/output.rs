@@ -9,8 +9,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::imaging::transform::{
-    detect_input_format, transform_image, BatchSettings, OutputFormat, TransformError,
-    TransformationMetadata,
+    detect_input_format, transform_image_with_progress, BatchSettings, OutputFormat,
+    ProcessingStage, TransformError, TransformationMetadata,
 };
 
 const MAX_COPY_ATTEMPTS: u32 = 10_000;
@@ -83,6 +83,14 @@ pub struct WriteImageError {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessingProgress {
+    pub path: String,
+    pub stage: ProcessingStage,
+    pub percent: u8,
+}
+
 impl WriteImageError {
     pub(crate) fn new(code: WriteImageErrorCode, message: impl Into<String>) -> Self {
         Self {
@@ -102,6 +110,22 @@ impl WriteImageError {
 pub fn write_transformed_image(
     request: WriteImageRequest,
 ) -> Result<WriteImageResult, WriteImageError> {
+    write_transformed_image_with_progress(request, |_| {})
+}
+
+pub fn write_transformed_image_with_progress(
+    request: WriteImageRequest,
+    mut on_progress: impl FnMut(ProcessingProgress),
+) -> Result<WriteImageResult, WriteImageError> {
+    let source_path = display_path(&request.source_path);
+    let mut report = |stage: ProcessingStage| {
+        on_progress(ProcessingProgress {
+            path: source_path.clone(),
+            stage,
+            percent: stage.percent(),
+        });
+    };
+    report(ProcessingStage::Preparing);
     validate_output_directory(&request.output_directory)?;
     let output_format = match request.settings.output_format {
         OutputFormat::Original => {
@@ -132,7 +156,9 @@ pub fn write_transformed_image(
         ConflictPolicy::Overwrite | ConflictPolicy::Skip => base_destination,
     };
     let transformed =
-        transform_image(&request.source_path, &request.settings).map_err(map_transform_error)?;
+        transform_image_with_progress(&request.source_path, &request.settings, &mut report)
+            .map_err(map_transform_error)?;
+    report(ProcessingStage::Saving);
     let mut temporary = TemporaryOutput::create(&request.output_directory)?;
     temporary.write_all(&transformed.bytes)?;
     temporary.finalize(&destination, request.conflict_policy)?;
@@ -146,13 +172,15 @@ pub fn write_transformed_image(
         })?
         .len();
 
-    Ok(WriteImageResult::Written {
+    let result = WriteImageResult::Written {
         source_path: display_path(&request.source_path),
         output_path: display_path(&destination),
         transformation: transformed.metadata,
         original_size_bytes,
         output_size_bytes,
-    })
+    };
+    report(ProcessingStage::Completed);
+    Ok(result)
 }
 
 pub fn output_path(
@@ -734,6 +762,53 @@ mod tests {
         let error = copy_without_overwrite(&second_temporary, &destination).unwrap_err();
         assert_eq!(error.code, WriteImageErrorCode::DestinationConflict);
         assert_eq!(fs::read(&destination).unwrap(), b"complete output");
+    }
+
+    #[test]
+    fn progress_reports_real_pipeline_stages_in_order() {
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "stages.png");
+        let mut stages = Vec::new();
+        write_transformed_image_with_progress(
+            request(
+                source,
+                directory.0.clone(),
+                OutputFormat::Jpeg,
+                ConflictPolicy::CreateCopy,
+            ),
+            |progress| stages.push((progress.stage, progress.percent)),
+        )
+        .unwrap();
+        assert_eq!(
+            stages,
+            vec![
+                (ProcessingStage::Preparing, 5),
+                (ProcessingStage::Decoding, 20),
+                (ProcessingStage::Optimizing, 45),
+                (ProcessingStage::Encoding, 70),
+                (ProcessingStage::Saving, 90),
+                (ProcessingStage::Completed, 100),
+            ]
+        );
+    }
+
+    #[test]
+    fn skipped_output_never_reports_false_completion() {
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "skip-progress.png");
+        let mut stages = Vec::new();
+        let result = write_transformed_image_with_progress(
+            request(
+                source,
+                directory.0.clone(),
+                OutputFormat::Original,
+                ConflictPolicy::Skip,
+            ),
+            |progress| stages.push(progress.stage),
+        )
+        .unwrap();
+        assert!(matches!(result, WriteImageResult::Skipped { .. }));
+        assert_eq!(stages, vec![ProcessingStage::Preparing]);
     }
 
     #[test]

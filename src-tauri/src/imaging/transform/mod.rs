@@ -39,6 +39,30 @@ pub struct EncodedTransformation {
     pub metadata: TransformationMetadata,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ProcessingStage {
+    Preparing,
+    Decoding,
+    Optimizing,
+    Encoding,
+    Saving,
+    Completed,
+}
+
+impl ProcessingStage {
+    pub const fn percent(self) -> u8 {
+        match self {
+            Self::Preparing => 5,
+            Self::Decoding => 20,
+            Self::Optimizing => 45,
+            Self::Encoding => 70,
+            Self::Saving => 90,
+            Self::Completed => 100,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum TransformError {
     InvalidSettings(Vec<settings::ValidationError>),
@@ -58,10 +82,19 @@ pub fn transform_image(
     path: &Path,
     settings: &BatchSettings,
 ) -> Result<EncodedTransformation, TransformError> {
+    transform_image_with_progress(path, settings, |_| {})
+}
+
+pub fn transform_image_with_progress(
+    path: &Path,
+    settings: &BatchSettings,
+    mut on_stage: impl FnMut(ProcessingStage),
+) -> Result<EncodedTransformation, TransformError> {
     settings
         .validate()
         .map_err(TransformError::InvalidSettings)?;
 
+    on_stage(ProcessingStage::Decoding);
     let file = File::open(path).map_err(|error| match error.kind() {
         std::io::ErrorKind::NotFound => TransformError::FileNotFound,
         std::io::ErrorKind::PermissionDenied => TransformError::PermissionDenied,
@@ -81,6 +114,8 @@ pub fn transform_image(
         DynamicImage::from_decoder(decoder).map_err(|_| TransformError::DecodeFailed)?;
     image.apply_orientation(orientation);
 
+    on_stage(ProcessingStage::Optimizing);
+
     let original = Dimensions {
         width: image.width(),
         height: image.height(),
@@ -94,14 +129,12 @@ pub fn transform_image(
         OutputFormat::Original => input_format,
         selected => selected,
     };
-    let quality = if matches!(
-        settings.output_format,
-        OutputFormat::Jpeg | OutputFormat::Webp
-    ) {
+    let quality = if matches!(output_format, OutputFormat::Jpeg | OutputFormat::Webp) {
         u8::try_from(settings.quality).map_err(|_| TransformError::EncodeFailed)?
     } else {
         82
     };
+    on_stage(ProcessingStage::Encoding);
     let bytes = encode_image(&image, output_format, quality)?;
     let metadata = TransformationMetadata {
         input_format,
@@ -338,6 +371,25 @@ mod tests {
             result.metadata.metadata_disposition,
             MetadataDisposition::DiscardedUnsupported
         );
+    }
+
+    #[test]
+    fn original_format_uses_requested_lossy_quality() {
+        let mut pixels = RgbaImage::new(96, 96);
+        for (x, y, pixel) in pixels.enumerate_pixels_mut() {
+            *pixel = Rgba([x as u8 * 2, y as u8 * 2, (x ^ y) as u8 * 2, 255]);
+        }
+        let source = write_source(OutputFormat::Jpeg, &pixels);
+        let mut high = settings(OutputFormat::Original);
+        high.quality = 92;
+        let mut maximum = high.clone();
+        maximum.quality = 45;
+        let high_result = transform_image(&source.0, &high).unwrap();
+        let maximum_result = transform_image(&source.0, &maximum).unwrap();
+        assert_eq!(high_result.metadata.output_format, OutputFormat::Jpeg);
+        assert_eq!(maximum_result.metadata.output_format, OutputFormat::Jpeg);
+        assert_ne!(high_result.bytes, maximum_result.bytes);
+        assert!(maximum_result.bytes.len() < high_result.bytes.len());
     }
 
     #[test]

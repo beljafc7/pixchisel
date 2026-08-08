@@ -114,6 +114,71 @@ input:focus-visible {
   justify-content: center;
 }
 
+.workflow-selector {
+  display: flex;
+  width: min(100%, 760px);
+  margin: auto;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.workflow-selector h1 {
+  margin: 0;
+  color: #24211c;
+  font-size: 30px;
+  letter-spacing: -0.035em;
+}
+
+.workflow-selector__choices {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.workflow-choice {
+  display: flex;
+  min-height: 112px;
+  padding: 20px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  border: 1px solid #c9c0b3;
+  border-radius: 14px;
+  color: #38342e;
+  background: rgb(255 255 255 / 52%);
+  cursor: pointer;
+  text-align: left;
+}
+
+.workflow-choice:hover {
+  border-color: #b8502b;
+  background: #fff8f2;
+}
+
+.workflow-choice strong {
+  font-size: 17px;
+}
+
+.workflow-choice span {
+  color: #787166;
+  font-size: 13px;
+}
+
+.workflow-workspace__heading {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  color: #625c53;
+  font-size: 13px;
+}
+
 .drop-zone {
   position: relative;
   display: flex;
@@ -415,6 +480,17 @@ input:focus-visible {
 }
 
 .processing-detail--processing {
+  display: grid;
+  gap: 3px;
+}
+
+.processing-detail--processing progress {
+  width: min(100%, 220px);
+  height: 4px;
+  accent-color: #b8502b;
+}
+
+.processing-detail--processing {
   color: #9b4a2e;
 }
 
@@ -566,6 +642,10 @@ input:focus-visible {
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.segmented-control--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .segmented-control label {
@@ -880,6 +960,10 @@ input:focus-visible {
     gap: 6px;
   }
 
+  .workflow-selector__choices {
+    grid-template-columns: 1fr;
+  }
+
   .segmented-control span,
   .segmented-control label:first-child span,
   .segmented-control label:last-child span {
@@ -908,15 +992,27 @@ input:focus-visible {
   .drop-zone h1,
   .queue-header h1,
   .options-panel__heading h2,
-  .queue-item__name {
+  .queue-item__name,
+  .workflow-selector h1 {
     color: #f2eee7;
   }
 
   .drop-zone,
   .queue-list,
-  .options-panel {
+  .options-panel,
+  .workflow-choice {
     border-color: #48423a;
     background: rgb(255 255 255 / 3%);
+  }
+
+  .workflow-choice:hover {
+    background: #2b211d;
+  }
+
+  .workflow-choice,
+  .workflow-choice span,
+  .workflow-workspace__heading {
+    color: #aaa399;
   }
 
   .drop-zone--active {

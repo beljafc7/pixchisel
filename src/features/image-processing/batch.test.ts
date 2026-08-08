@@ -4,6 +4,7 @@ import {
   runBoundedBatch,
   summarizeBatch,
   retainQueuedBatchPaths,
+  processingStateFromProgress,
   type CancellationToken,
   type FileProcessingState,
 } from "./batch";
@@ -14,6 +15,18 @@ describe("retainQueuedBatchPaths", () => {
       "one",
       "three",
     ]);
+  });
+});
+
+describe("processing progress", () => {
+  it("maps a native stage to the identified queue item state", () => {
+    const progress = { path: "/images/photo.jpg", stage: "encoding" as const, percent: 70 as const };
+    expect(progress.path).toBe("/images/photo.jpg");
+    expect(processingStateFromProgress(progress)).toEqual({
+      status: "processing",
+      stage: "encoding",
+      percent: 70,
+    });
   });
 });
 

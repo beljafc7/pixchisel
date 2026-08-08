@@ -9,16 +9,13 @@ import { formatFileSize } from "../image-import/format";
 import {
   batchSettingsReducer,
   createDefaultBatchSettings,
-  isQualityApplicable,
   MAX_DIMENSION,
   MAX_PERCENTAGE,
-  type OutputFormat,
   type ResizeMode,
   type ResizeValueKey,
 } from "./settings";
 import { isBatchSettingsValid, validateBatchSettings } from "./validation";
 import {
-  METADATA_BEHAVIOR_MESSAGE,
   compactOutputDirectory,
   createDefaultOutputSettings,
   isFutureProcessingReady,
@@ -29,13 +26,24 @@ import {
   BATCH_CONCURRENCY,
   isTerminalState,
   retainQueuedBatchPaths,
+  processingStateFromProgress,
   runBoundedBatch,
   summarizeBatch,
   type CancellationToken,
   type FileProcessingState,
 } from "./batch";
+import {
+  createCompressSettings,
+  createConvertSettings,
+  createResizeSettings,
+  workflowCopy,
+  type CompressionPreset,
+  type ConversionFormat,
+  type WorkflowMode,
+} from "../workflows/workflow";
 
 interface TransformationOptionsProps {
+  workflow: WorkflowMode;
   readyPaths: string[];
   queuePaths: string[];
   processingStates: Record<string, FileProcessingState>;
@@ -46,8 +54,7 @@ interface TransformationOptionsProps {
   workspaceResetVersion: number;
 }
 
-const outputFormats: Array<{ value: OutputFormat; label: string }> = [
-  { value: "original", label: "Keep original" },
+const conversionFormats: Array<{ value: ConversionFormat; label: string }> = [
   { value: "jpeg", label: "JPEG" },
   { value: "png", label: "PNG" },
   { value: "webp", label: "WebP" },
@@ -62,6 +69,7 @@ const resizeModes: Array<{ value: ResizeMode; label: string }> = [
 ];
 
 export function TransformationOptions({
+  workflow,
   readyPaths,
   queuePaths,
   processingStates,
@@ -71,7 +79,9 @@ export function TransformationOptions({
   onResultsInvalidated,
   workspaceResetVersion,
 }: TransformationOptionsProps) {
-  const [settings, dispatch] = useReducer(batchSettingsReducer, undefined, createDefaultBatchSettings);
+  const [draftSettings, dispatch] = useReducer(batchSettingsReducer, undefined, createDefaultBatchSettings);
+  const [compressionPreset, setCompressionPreset] = useState<CompressionPreset>("standard");
+  const [conversionFormat, setConversionFormat] = useState<ConversionFormat>("jpeg");
   const [output, setOutput] = useState(createDefaultOutputSettings);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -79,8 +89,20 @@ export function TransformationOptions({
   const [statusMessage, setStatusMessage] = useState("");
   const cancellation = useRef<CancellationToken | null>(null);
   const primaryAction = useRef<HTMLButtonElement>(null);
+  const settings = useMemo(() => {
+    if (workflow === "compress") return createCompressSettings(compressionPreset);
+    if (workflow === "convert") return createConvertSettings(conversionFormat);
+    return createResizeSettings({
+      mode: draftSettings.resize.mode === "none" ? "width" : draftSettings.resize.mode,
+      width: draftSettings.resize.width,
+      height: draftSettings.resize.height,
+      maxWidth: draftSettings.resize.maxWidth,
+      maxHeight: draftSettings.resize.maxHeight,
+      percentage: draftSettings.resize.percentage,
+      allowUpscaling: draftSettings.allowUpscaling,
+    });
+  }, [compressionPreset, conversionFormat, draftSettings, workflow]);
   const errors = validateBatchSettings(settings);
-  const qualityApplies = isQualityApplicable(settings.outputFormat);
   const settingsAreValid = isBatchSettingsValid(settings);
   const readyImageCount = readyPaths.length;
   const futureProcessingReady = isFutureProcessingReady(readyImageCount, settings, output);
@@ -143,7 +165,9 @@ export function TransformationOptions({
         async (path) => {
           const request = createWriteImageRequest(path, settings, output);
           if (!request) throw { code: "writeFailed", message: "Output settings are incomplete." };
-          return writeTransformedImage(request);
+          return writeTransformedImage(request, (progress) => {
+            onItemState(progress.path, processingStateFromProgress(progress));
+          });
         },
         token,
         onItemState,
@@ -191,10 +215,6 @@ export function TransformationOptions({
     }
   }
 
-  function numberValue(value: number): number | "" {
-    return Number.isNaN(value) ? "" : value;
-  }
-
   function updateNumber(key: ResizeValueKey, value: number) {
     updateSettings({ type: "setResizeValue", key, value });
   }
@@ -204,70 +224,49 @@ export function TransformationOptions({
       <div className="options-panel__heading">
         <div>
           <p className="welcome__eyebrow">Batch settings</p>
-          <h2 id="options-title">Transformation options</h2>
+          <h2 id="options-title">{workflowCopy[workflow].title}</h2>
         </div>
         <span className="options-panel__scope">Applies to all ready images</span>
       </div>
 
       <div className="options-grid">
-        <fieldset className="option-group">
-          <legend>Output format</legend>
+        {workflow === "compress" && <fieldset className="option-group option-group--wide">
+          <legend>Compression</legend>
           <div className="segmented-control">
-            {outputFormats.map((format) => (
-              <label key={format.value}>
+            {(["standard", "strong", "maximum"] as const).map((preset) => (
+              <label key={preset}>
                 <input
                   type="radio"
-                  name="output-format"
-                  value={format.value}
-                  checked={settings.outputFormat === format.value}
+                  name="compression-preset"
+                  value={preset}
+                  checked={compressionPreset === preset}
                   disabled={isRunning}
-                  onChange={() => updateSettings({ type: "setOutputFormat", value: format.value })}
+                  onChange={() => { invalidateResults(); setCompressionPreset(preset); }}
                 />
-                <span>{format.label}</span>
+                <span>{preset[0].toUpperCase() + preset.slice(1)}</span>
               </label>
             ))}
           </div>
-          {settings.outputFormat === "jpeg" && (
-            <p className="field-note">Transparent areas will use a white background.</p>
-          )}
-        </fieldset>
+          <p className="field-note">Standard balances size and quality. Strong and Maximum prioritize smaller files. PNG remains lossless.</p>
+        </fieldset>}
 
-        <fieldset className="option-group">
-          <legend>Quality</legend>
-          <div className="quality-control">
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={numberValue(settings.quality)}
-              disabled={!qualityApplies || isRunning}
-              aria-label="Quality"
-              onChange={(event) =>
-                updateSettings({ type: "setQuality", value: event.currentTarget.valueAsNumber })
-              }
-            />
-            <NumericInput
-              label="Quality value"
-              value={settings.quality}
-              min={1}
-              max={100}
-              disabled={!qualityApplies || isRunning}
-              error={errors.quality}
-              suffix="%"
-              onChange={(value) => updateSettings({ type: "setQuality", value })}
-            />
+        {workflow === "convert" && <fieldset className="option-group option-group--wide">
+          <legend>Convert to</legend>
+          <div className="segmented-control segmented-control--three">
+            {conversionFormats.map((format) => <label key={format.value}>
+              <input type="radio" name="conversion-format" value={format.value} checked={conversionFormat === format.value} disabled={isRunning} onChange={() => { invalidateResults(); setConversionFormat(format.value); }} />
+              <span>{format.label}</span>
+            </label>)}
           </div>
-          <p className="field-note">
-            {qualityApplies ? "Higher quality creates larger files." : "Not used for this format."}
-          </p>
-        </fieldset>
+          {conversionFormat === "jpeg" && <p className="field-note">Transparent areas will use a white background.</p>}
+        </fieldset>}
 
-        <fieldset className="option-group option-group--wide">
+        {workflow === "resize" && <fieldset className="option-group option-group--wide">
           <legend>Resize</legend>
           <div className="resize-row">
             <select
               aria-label="Resize mode"
-              value={settings.resize.mode}
+              value={draftSettings.resize.mode === "none" ? "width" : draftSettings.resize.mode}
               disabled={isRunning}
               onChange={(event) =>
                 updateSettings({ type: "setResizeMode", value: event.currentTarget.value as ResizeMode })
@@ -277,14 +276,14 @@ export function TransformationOptions({
                 <option key={mode.value} value={mode.value}>{mode.label}</option>
               ))}
             </select>
-            <ResizeFields settings={settings} errors={errors} updateNumber={updateNumber} disabled={isRunning} />
+            <ResizeFields settings={{ ...draftSettings, resize: { ...draftSettings.resize, mode: draftSettings.resize.mode === "none" ? "width" : draftSettings.resize.mode } }} errors={errors} updateNumber={updateNumber} disabled={isRunning} />
           </div>
           <div className="option-checks">
             <label className="check-control">
               <input
                 type="checkbox"
-                checked={settings.allowUpscaling}
-                disabled={settings.resize.mode === "none" || isRunning}
+                checked={draftSettings.allowUpscaling}
+                disabled={isRunning}
                 onChange={(event) =>
                   updateSettings({ type: "setAllowUpscaling", value: event.currentTarget.checked })
                 }
@@ -293,12 +292,7 @@ export function TransformationOptions({
             </label>
             <span className="field-note">Smaller images won't be enlarged.</span>
           </div>
-        </fieldset>
-
-        <fieldset className="option-group option-group--wide option-group--metadata">
-          <legend>Metadata</legend>
-          <p className="field-note metadata-note">{METADATA_BEHAVIOR_MESSAGE}</p>
-        </fieldset>
+        </fieldset>}
 
         <fieldset className="option-group option-group--wide output-options">
           <legend>Output</legend>
@@ -352,7 +346,7 @@ export function TransformationOptions({
       )}
 
       {!isRunning && lastBatchPaths.length > 0 && completedCount === lastBatchPaths.length && (
-        <BatchResults summary={summary} />
+        <BatchResults summary={summary} workflow={workflow} />
       )}
 
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -402,7 +396,7 @@ export function TransformationOptions({
   );
 }
 
-function BatchResults({ summary }: { summary: ReturnType<typeof summarizeBatch> }) {
+function BatchResults({ summary, workflow }: { summary: ReturnType<typeof summarizeBatch>; workflow: WorkflowMode }) {
   const sizeMessage = summary.sizeDifference === "saved"
     ? `${formatFileSize(summary.sizeDifferenceBytes)} saved (${summary.percentageDifference.toFixed(1)}%)`
     : summary.sizeDifference === "larger"
@@ -413,7 +407,7 @@ function BatchResults({ summary }: { summary: ReturnType<typeof summarizeBatch> 
       <div className="batch-results__heading">
         <div>
           <h3 id="batch-results-title">Chisel complete</h3>
-          <p>{summary.total} {summary.total === 1 ? "image" : "images"} in this run</p>
+          <p>{summary.written} {summary.written === 1 ? "image" : "images"} {workflowCopy[workflow].resultVerb}</p>
         </div>
         {summary.written > 0 && <strong>{sizeMessage}</strong>}
       </div>

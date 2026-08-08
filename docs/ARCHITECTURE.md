@@ -35,6 +35,18 @@ The application footer reads its version from Tauri's runtime app API. React doe
 not contain a hardcoded version or import package metadata into the frontend
 bundle.
 
+## Workflow adapters
+
+`WorkflowMode` is session-level frontend state with `compress`, `convert`, and
+`resize` variants. Workflow selection precedes import. The three small adapters
+produce the existing native `BatchSettings`, so decoding, transformation,
+encoding, safe writing, cancellation, and results remain one shared engine.
+
+Compress preserves format and maps Standard/Strong/Maximum to lossy qualities
+82/65/45. Convert targets a selected format at internal quality 92 with resize
+disabled. Resize preserves format at internal quality 92. PNG always uses the
+existing lossless encoder and does not claim preset-dependent quality changes.
+
 ## Version metadata
 
 `package.json` is the canonical authored version. The dependency-free
@@ -264,9 +276,12 @@ are not interrupted and complete their existing safe write or error normally;
 every path that was never started becomes cancelled. This preserves temporary
 file and finalization guarantees without forcefully terminating Rust work.
 
-Progress is item-based because the native pipeline does not expose trustworthy
-byte-level stages. Overall progress counts terminal items against the batch
-total. Result aggregation counts written, skipped, failed, and cancelled items
+Progress uses real pipeline milestones rather than invented byte-level values. A
+typed Tauri channel sends source path, stage, and fixed percentage at Preparing
+5, Decoding 20, Optimizing 45, Encoding 70, Saving 90, and Completed 100. These
+values are execution boundaries, not ETA estimates. Overall progress counts
+terminal items against the batch total. Result aggregation counts written,
+skipped, failed, and cancelled items
 and sums original/output bytes only for written results. A zero-byte original
 total produces a zero percentage, while larger output is described as larger
 rather than negative savings.
@@ -283,6 +298,9 @@ Clear All removes the queue, import errors, thumbnail references, processing
 states, and summary. The mounted options state deliberately retains batch
 settings and the selected output folder for convenient repeated work. Queue
 mutation and all processing settings are locked only while a batch is active.
+
+Changing workflow requires confirmation when a queue is loaded, then clears that
+workspace rather than attempting cross-workflow migration.
 
 ## Thumbnail pipeline
 
