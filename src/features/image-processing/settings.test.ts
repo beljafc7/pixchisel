@@ -15,7 +15,7 @@ describe("batch settings", () => {
       quality: 82,
       resize: { mode: "none", width: 1920, height: 1080, maxWidth: 1920, maxHeight: 1080, percentage: 50 },
       allowUpscaling: false,
-      removeMetadata: false,
+      removeMetadata: true,
     });
     expect(isBatchSettingsValid(settings)).toBe(true);
   });
@@ -60,7 +60,7 @@ describe("batch settings", () => {
       quality: 82,
       resize: { mode: "none", width: 1920, height: 1080, maxWidth: 1920, maxHeight: 1080, percentage: 50 },
       allowUpscaling: false,
-      removeMetadata: false,
+      removeMetadata: true,
     });
   });
 });

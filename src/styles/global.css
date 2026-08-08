@@ -483,6 +483,58 @@ button:focus-visible {
   border-top: 1px solid #e4dfd6;
 }
 
+.metadata-note {
+  margin-top: 0;
+}
+
+.output-options {
+  padding-top: 14px;
+  border-top: 1px solid #e4dfd6;
+}
+
+.output-options__row,
+.output-folder,
+.conflict-control {
+  display: flex;
+  align-items: center;
+}
+
+.output-options__row {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.output-folder {
+  min-width: 0;
+  gap: 10px;
+}
+
+.output-folder > span {
+  max-width: 260px;
+  overflow: hidden;
+  color: #6e675d;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conflict-control {
+  gap: 9px;
+  color: #625c53;
+  font-size: 12px;
+}
+
+.conflict-control select {
+  min-height: 36px;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid #c9c0b3;
+  border-radius: 8px;
+  color: #38342e;
+  background: #fffdfa;
+  font: inherit;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -776,6 +828,7 @@ button:focus-visible {
   }
 
   .option-group--metadata,
+  .output-options,
   .options-panel__action {
     border-color: #3d3933;
   }
@@ -787,6 +840,7 @@ button:focus-visible {
 
   .segmented-control span,
   .resize-row select,
+  .conflict-control select,
   .numeric-field__input {
     border-color: #554e45;
     color: #c3bcb2;
@@ -800,7 +854,8 @@ button:focus-visible {
   }
 
   .numeric-field__input input,
-  .resize-row select {
+  .resize-row select,
+  .conflict-control select {
     color: #eee9e2;
   }
 
@@ -832,6 +887,8 @@ button:focus-visible {
   .drop-zone p,
   .options-panel__scope,
   .options-panel__action,
+  .output-folder > span,
+  .conflict-control,
   .field-note {
     color: #aaa399;
   }

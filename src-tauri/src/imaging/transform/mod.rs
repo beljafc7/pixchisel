@@ -121,6 +121,18 @@ pub fn transform_image(
     Ok(EncodedTransformation { bytes, metadata })
 }
 
+pub fn detect_input_format(path: &Path) -> Result<OutputFormat, TransformError> {
+    let file = File::open(path).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => TransformError::FileNotFound,
+        std::io::ErrorKind::PermissionDenied => TransformError::PermissionDenied,
+        _ => TransformError::DecodeFailed,
+    })?;
+    let reader = ImageReader::new(BufReader::new(file))
+        .with_guessed_format()
+        .map_err(|_| TransformError::DecodeFailed)?;
+    supported_format(reader.format())
+}
+
 fn supported_format(format: Option<ImageFormat>) -> Result<OutputFormat, TransformError> {
     match format {
         Some(ImageFormat::Jpeg) => Ok(OutputFormat::Jpeg),

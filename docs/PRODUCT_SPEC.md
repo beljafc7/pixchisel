@@ -102,17 +102,16 @@ preservation. Settings are intentionally not persisted between launches.
 ### Transformation behavior
 
 - Orientation is applied before resize calculations and pixel resampling.
-- Keep original means re-encoding to the detected source format whenever a
-  transformation is required. A future unchanged-input fast path may copy bytes.
+- Keep original means re-encoding to the detected source format. The current
+  metadata-removal policy prevents an unchanged-byte copy optimization.
 - JPEG output composites transparent pixels onto white.
 - PNG output preserves pixel alpha.
 - Source files remain untouched during transformation.
 
 The current re-encode pipeline does not preserve source EXIF, ICC, XMP, or PNG
-textual metadata. Selecting metadata removal intentionally guarantees that no
-transfer is attempted. Leaving removal disabled currently reports that metadata
-was discarded because preservation is unsupported; it must not be presented as
-successful preservation in results. A preservation policy remains a V1 decision.
+textual metadata. The V1 interface truthfully states that transformed outputs
+remove metadata rather than offering a preservation control the encoder pipeline
+cannot honor.
 
 ### Batch processing
 
@@ -126,9 +125,22 @@ successful preservation in results. A preservation policy remains a V1 decision.
 
 - Let the user select an output directory.
 - Support overwrite, create-copy, and skip conflict behavior.
-- Optionally remove image metadata.
+- Remove transferable image metadata from transformed output in the current V1
+  pipeline and communicate that behavior directly.
 - Avoid partially written final files by writing safely and finalizing only after
   successful encoding.
+- Retain the selected directory and conflict policy only for the current session.
+- Default conflict behavior to create-copy.
+
+Output filenames retain the source stem. JPEG normalizes to `.jpg`, PNG to
+`.png`, and WebP to `.webp`; keep-original uses the detected source format and
+the same normalized extensions. Create-copy selects the first available numbered
+sibling such as `photo (1).webp`. Skip is a successful non-write result.
+
+Overwrite never encodes directly over an existing destination. The complete
+encoded output is first written to a temporary file in the destination directory
+and safely finalized. If source and destination resolve to the same filename,
+the source remains intact until the replacement is complete and ready.
 
 ### Results
 

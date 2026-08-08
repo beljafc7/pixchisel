@@ -153,8 +153,9 @@ The single-image pipeline detects JPEG, PNG, or WebP from content, obtains the
 decoder orientation, decodes, applies orientation, calculates the resize target,
 resamples only when needed, and encodes to the selected format. For
 keep-original, the detected input format becomes the encoder format. This phase
-always re-encodes; Phase 2.2 may safely copy an unchanged keep-original source as
-an optimization.
+always re-encodes. The current V1 metadata-removal policy means copying unchanged
+source bytes would not be equivalent, so Phase 2.2 deliberately has no copy fast
+path.
 
 Resize calculation is pure. Width and height modes derive the other dimension;
 fit chooses the limiting axis and never crops; percentage scales both axes.
@@ -182,6 +183,46 @@ false, the result reports `discardedUnsupported` rather than claiming
 preservation. Encoder-required structural headers are not treated as source
 metadata. A narrowly scoped preservation policy must be designed separately if
 preservation is required before V1 release.
+
+The V1 interface now presents this limitation as fixed behavior rather than an
+editable option: transformed outputs remove transferable metadata. New frontend
+settings therefore use `removeMetadata: true`; the field remains in the native
+contract so behavior stays explicit.
+
+## Output filesystem boundary
+
+Phase 2.2 adds `write_transformed_image` for one image. Its request contains a
+source path, user-selected output directory, validated batch settings, and one
+of `overwrite`, `createCopy`, or `skip`. The command runs on Tauri's blocking
+pool. React receives only paths and typed result metadata; encoded bytes never
+cross the command boundary.
+
+The output directory is chosen with the existing native dialog permission and
+retained only in React session state. No general filesystem plugin permission is
+granted. The native command validates that the directory still exists before
+processing and performs every write itself.
+
+Output names retain the source stem and replace only the extension: `.jpg` for
+JPEG, `.png` for PNG, and `.webp` for WebP. Keep-original resolves the format from
+file content and uses the normalized extension. Create-copy checks deterministic
+`name (1).ext`, `name (2).ext` candidates up to 10,000. Final creation uses an
+exclusive same-filesystem hard link from the complete temporary file, preventing
+a race from overwriting a newly appeared destination.
+
+Skip checks an existing deterministic destination before decoding or encoding.
+Overwrite always transforms fully first, then writes, flushes, and syncs an
+exclusive hidden temporary file in the destination directory. On Unix, rename
+atomically replaces the destination. Standard Rust rename does not replace an
+existing Windows file, so Windows first moves the completed destination to a
+unique backup, moves the complete temporary file into place, restores the backup
+if finalization fails, and removes it after success. This is recoverable but has
+a brief non-atomic path transition on Windows.
+
+When source and destination are the same, transformation completes in memory and
+the temporary file is fully durable before replacement begins. Create-copy picks
+a sibling, and skip leaves the source untouched. Failures before finalization do
+not modify either source or an existing destination; temporary output is removed
+on normal error paths where possible.
 
 ## Thumbnail pipeline
 
@@ -221,6 +262,8 @@ filesystem are not exposed. React converts returned thumbnail paths with
   according to the selected policy.
 - Clean temporary files after failure or cancellation where possible.
 - Do not modify source metadata or source files unless overwrite is selected.
+- Never encode directly into a final path. Finalization occurs only after a
+  complete same-directory temporary write has been flushed and synchronized.
 
 ## Concurrency and resource use
 

@@ -42,7 +42,7 @@ export function createDefaultBatchSettings(): BatchSettings {
       percentage: 50,
     },
     allowUpscaling: false,
-    removeMetadata: false,
+    removeMetadata: true,
   };
 }
 

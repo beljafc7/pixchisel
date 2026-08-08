@@ -1,4 +1,5 @@
-import { useReducer } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { useReducer, useState } from "react";
 import {
   batchSettingsReducer,
   createDefaultBatchSettings,
@@ -10,6 +11,13 @@ import {
   type ResizeValueKey,
 } from "./settings";
 import { isBatchSettingsValid, validateBatchSettings } from "./validation";
+import {
+  METADATA_BEHAVIOR_MESSAGE,
+  compactOutputDirectory,
+  createDefaultOutputSettings,
+  isFutureProcessingReady,
+  type ConflictPolicy,
+} from "./output";
 
 interface TransformationOptionsProps {
   readyImageCount: number;
@@ -32,9 +40,24 @@ const resizeModes: Array<{ value: ResizeMode; label: string }> = [
 
 export function TransformationOptions({ readyImageCount }: TransformationOptionsProps) {
   const [settings, dispatch] = useReducer(batchSettingsReducer, undefined, createDefaultBatchSettings);
+  const [output, setOutput] = useState(createDefaultOutputSettings);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const errors = validateBatchSettings(settings);
   const qualityApplies = isQualityApplicable(settings.outputFormat);
-  const canChisel = readyImageCount > 0 && isBatchSettingsValid(settings);
+  const settingsAreValid = isBatchSettingsValid(settings);
+  const futureProcessingReady = isFutureProcessingReady(readyImageCount, settings, output);
+
+  async function chooseOutputDirectory() {
+    try {
+      const directory = await open({ directory: true, multiple: false });
+      if (directory) {
+        setOutput((current) => ({ ...current, outputDirectory: directory }));
+        setFolderError(null);
+      }
+    } catch {
+      setFolderError("The output folder could not be selected.");
+    }
+  }
 
   function numberValue(value: number): number | "" {
     return Number.isNaN(value) ? "" : value;
@@ -140,22 +163,54 @@ export function TransformationOptions({ readyImageCount }: TransformationOptions
 
         <fieldset className="option-group option-group--wide option-group--metadata">
           <legend>Metadata</legend>
-          <label className="check-control">
-            <input
-              type="checkbox"
-              checked={settings.removeMetadata}
-              onChange={(event) =>
-                dispatch({ type: "setRemoveMetadata", value: event.currentTarget.checked })
-              }
-            />
-            Remove metadata from output files
-          </label>
+          <p className="field-note metadata-note">{METADATA_BEHAVIOR_MESSAGE}</p>
+        </fieldset>
+
+        <fieldset className="option-group option-group--wide output-options">
+          <legend>Output</legend>
+          <div className="output-options__row">
+            <div className="output-folder">
+              <button className="secondary-button" type="button" onClick={chooseOutputDirectory}>
+                {output.outputDirectory ? "Change Folder" : "Choose Folder"}
+              </button>
+              <span title={output.outputDirectory ?? undefined}>
+                {output.outputDirectory
+                  ? compactOutputDirectory(output.outputDirectory)
+                  : "No folder selected"}
+              </span>
+            </div>
+            <label className="conflict-control">
+              <span>When a file exists</span>
+              <select
+                value={output.conflictPolicy}
+                onChange={(event) =>
+                  setOutput((current) => ({
+                    ...current,
+                    conflictPolicy: event.currentTarget.value as ConflictPolicy,
+                  }))
+                }
+              >
+                <option value="createCopy">Create Copy</option>
+                <option value="overwrite">Overwrite</option>
+                <option value="skip">Skip</option>
+              </select>
+            </label>
+          </div>
+          {folderError && <p className="field-error">{folderError}</p>}
         </fieldset>
       </div>
 
       <div className="options-panel__action">
-        <span>{canChisel ? "Settings are valid" : "Check the highlighted settings"}</span>
-        <button className="primary-button" type="button" disabled title="Processing arrives in Phase 2">
+        <span>
+          {!settingsAreValid
+            ? "Check the highlighted settings"
+            : !output.outputDirectory
+              ? "Choose an output folder to continue"
+              : futureProcessingReady
+                ? "Ready for batch processing"
+                : "No valid images are ready"}
+        </span>
+        <button className="primary-button" type="button" disabled title="Batch processing arrives in Phase 2.3">
           Chisel {readyImageCount} {readyImageCount === 1 ? "Image" : "Images"}
         </button>
       </div>

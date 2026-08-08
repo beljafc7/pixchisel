@@ -44,19 +44,33 @@ performed.
   in Phase 2.1.**
 - Apply the documented white JPEG transparency background and no-upscale policy.
   **Complete in the native transformation pipeline.**
-- Add output directory selection and the three conflict policies.
-- Implement safe native output writes.
-- Add metadata removal where supported. **Phase 2.1 strips transferable metadata;
-  preservation while removal is disabled remains an explicit product decision.**
+- Add output directory selection and the three conflict policies. **Complete for
+  the session-scoped single-image boundary in Phase 2.2.**
+- Implement safe native output writes. **Complete for single-image output in
+  Phase 2.2, including source-equals-destination protection.**
+- Add metadata removal where supported. **Complete for the current V1 policy:
+  transformed outputs explicitly remove transferable metadata.**
 
-### Phase 2.2 — Filesystem boundary
+### Phase 2.2 — Filesystem boundary — complete
 
-- Select an output directory through a native dialog.
+- Select an output directory through a native dialog. **Complete.**
 - Define the native single-image write request around the established settings.
+  **Complete.**
 - Implement overwrite, create-copy, and skip behavior without silent data loss.
+  **Complete.**
 - Write encoded bytes to a temporary sibling and finalize atomically where the
-  platform and destination filesystem permit.
+  platform and destination filesystem permit. **Complete.**
 - Surface the metadata-preservation limitation before enabling production output.
+  **Complete: V1 transformed outputs explicitly remove metadata.**
+
+### Phase 2.3 — Batch boundary
+
+- Connect the existing Chisel action to bounded native batch orchestration.
+- Reuse the single-image writer for each ready queue item.
+- Add stable job and per-file state without returning encoded bytes to React.
+- Add progress and cooperative cancellation without weakening temporary-file
+  cleanup or conflict guarantees.
+- Keep individual write failures isolated and report skipped files separately.
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.

@@ -2,6 +2,10 @@ use std::path::PathBuf;
 
 use tauri::State;
 
+use crate::filesystem::{
+    write_transformed_image as write_image_file, WriteImageError, WriteImageRequest,
+    WriteImageResult,
+};
 use crate::imaging::{
     generate_thumbnail_files, inspect_image_files, ImageInspectionResult, InspectImageError,
     ThumbnailCache, ThumbnailError, ThumbnailResult,
@@ -44,4 +48,13 @@ pub async fn clear_thumbnail_cache(cache: State<'_, ThumbnailCache>) -> Result<(
     tauri::async_runtime::spawn_blocking(move || cache.clear())
         .await
         .map_err(|_| ThumbnailError::internal())?
+}
+
+#[tauri::command]
+pub async fn write_transformed_image(
+    request: WriteImageRequest,
+) -> Result<WriteImageResult, WriteImageError> {
+    tauri::async_runtime::spawn_blocking(move || write_image_file(request))
+        .await
+        .map_err(|_| WriteImageError::internal())?
 }
