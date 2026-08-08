@@ -3,9 +3,19 @@ import type { WriteImageResult } from "./output";
 import {
   runBoundedBatch,
   summarizeBatch,
+  retainQueuedBatchPaths,
   type CancellationToken,
   type FileProcessingState,
 } from "./batch";
+
+describe("retainQueuedBatchPaths", () => {
+  it("removes deleted items so completed summaries cannot retain stale rows", () => {
+    expect(retainQueuedBatchPaths(["one", "two", "three"], ["one", "three"])).toEqual([
+      "one",
+      "three",
+    ]);
+  });
+});
 
 function written(path: string, original: number, output: number): WriteImageResult {
   return {
@@ -26,6 +36,30 @@ function written(path: string, original: number, output: number): WriteImageResu
 }
 
 describe("batch processor", () => {
+  it("keeps several hundred results and progress updates accurate", async () => {
+    const paths = Array.from({ length: 500 }, (_, index) => `image-${index}`);
+    let terminalUpdates = 0;
+    const results = await runBoundedBatch(
+      paths,
+      async (path) => written(path, 20, 10),
+      { cancelled: false },
+      (_path, state) => {
+        if (state.status === "written") terminalUpdates += 1;
+      },
+      3,
+    );
+
+    expect(results).toHaveLength(500);
+    expect(terminalUpdates).toBe(500);
+    expect(summarizeBatch(results)).toMatchObject({
+      total: 500,
+      written: 500,
+      originalBytes: 10_000,
+      outputBytes: 5_000,
+      percentageDifference: 50,
+    });
+  });
+
   it("bounds concurrency and preserves input result order", async () => {
     let active = 0;
     let maximumActive = 0;

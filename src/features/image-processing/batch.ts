@@ -1,6 +1,6 @@
 import type { WriteImageError, WriteImageResult } from "./output";
 
-export const BATCH_CONCURRENCY = 3;
+export const BATCH_CONCURRENCY = 2;
 
 export type FileProcessingState =
   | { status: "ready" }
@@ -137,6 +137,11 @@ export function isTerminalState(state: FileProcessingState | undefined): boolean
         state.status === "failed" ||
         state.status === "cancelled"),
   );
+}
+
+export function retainQueuedBatchPaths(batchPaths: string[], queuePaths: string[]): string[] {
+  const queued = new Set(queuePaths);
+  return batchPaths.filter((path) => queued.has(path));
 }
 
 function normalizeWriteError(error: unknown): WriteImageError {

@@ -29,7 +29,9 @@ button {
   font: inherit;
 }
 
-button:focus-visible {
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
   outline: 3px solid rgb(184 80 43 / 28%);
   outline-offset: 3px;
 }
@@ -224,7 +226,7 @@ button:focus-visible {
 
 .primary-button:disabled,
 .secondary-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.65;
 }
 
@@ -246,7 +248,7 @@ button:focus-visible {
 }
 
 .text-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.5;
 }
 
@@ -532,6 +534,7 @@ button:focus-visible {
 
 .output-folder {
   min-width: 0;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -760,6 +763,18 @@ button:focus-visible {
   margin: 0;
 }
 
+.batch-results__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.batch-results__heading strong {
+  color: #3f7954;
+  font-size: 13px;
+}
+
 .batch-results h3 {
   color: #38342e;
   font-size: 14px;
@@ -769,6 +784,17 @@ button:focus-visible {
 .batch-results__counts {
   color: #6e675d;
   font-size: 12px;
+}
+
+.batch-results__counts span {
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: #eee9e1;
+}
+
+.batch-results__counts strong {
+  color: #38342e;
+  font-variant-numeric: tabular-nums;
 }
 
 .batch-results p {
@@ -843,7 +869,8 @@ button:focus-visible {
   }
 
   .options-panel__heading,
-  .options-panel__action {
+  .options-panel__action,
+  .batch-results__heading {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -986,6 +1013,18 @@ button:focus-visible {
 
   .processing-detail--written {
     color: #88c79d;
+  }
+
+  .batch-results__heading strong {
+    color: #88c79d;
+  }
+
+  .batch-results__counts span {
+    background: #302c27;
+  }
+
+  .batch-results__counts strong {
+    color: #eee9e2;
   }
 
   .processing-detail--processing {

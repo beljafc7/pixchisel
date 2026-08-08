@@ -1,6 +1,10 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { useMemo, useReducer, useRef, useState } from "react";
-import { writeTransformedImage } from "../../lib/native/output";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  openOutputFolder,
+  preflightOutputDirectory,
+  writeTransformedImage,
+} from "../../lib/native/output";
 import { formatFileSize } from "../image-import/format";
 import {
   batchSettingsReducer,
@@ -24,6 +28,7 @@ import { createWriteImageRequest } from "./output";
 import {
   BATCH_CONCURRENCY,
   isTerminalState,
+  retainQueuedBatchPaths,
   runBoundedBatch,
   summarizeBatch,
   type CancellationToken,
@@ -32,10 +37,13 @@ import {
 
 interface TransformationOptionsProps {
   readyPaths: string[];
+  queuePaths: string[];
   processingStates: Record<string, FileProcessingState>;
   onBatchStart: (paths: string[], resetAll: boolean) => void;
   onItemState: (path: string, state: FileProcessingState) => void;
   onRunningChange: (running: boolean) => void;
+  onResultsInvalidated: () => void;
+  workspaceResetVersion: number;
 }
 
 const outputFormats: Array<{ value: OutputFormat; label: string }> = [
@@ -55,17 +63,22 @@ const resizeModes: Array<{ value: ResizeMode; label: string }> = [
 
 export function TransformationOptions({
   readyPaths,
+  queuePaths,
   processingStates,
   onBatchStart,
   onItemState,
   onRunningChange,
+  onResultsInvalidated,
+  workspaceResetVersion,
 }: TransformationOptionsProps) {
   const [settings, dispatch] = useReducer(batchSettingsReducer, undefined, createDefaultBatchSettings);
   const [output, setOutput] = useState(createDefaultOutputSettings);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [lastBatchPaths, setLastBatchPaths] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState("");
   const cancellation = useRef<CancellationToken | null>(null);
+  const primaryAction = useRef<HTMLButtonElement>(null);
   const errors = validateBatchSettings(settings);
   const qualityApplies = isQualityApplicable(settings.outputFormat);
   const settingsAreValid = isBatchSettingsValid(settings);
@@ -84,12 +97,44 @@ export function TransformationOptions({
     [lastBatchPaths, processingStates],
   );
 
+  useEffect(() => {
+    setLastBatchPaths((paths) => retainQueuedBatchPaths(paths, queuePaths));
+  }, [queuePaths]);
+
+  useEffect(() => {
+    setLastBatchPaths([]);
+    setStatusMessage("");
+  }, [workspaceResetVersion]);
+
+  function invalidateResults() {
+    if (lastBatchPaths.length > 0) {
+      setLastBatchPaths([]);
+      setStatusMessage("Previous results cleared because batch settings changed.");
+      onResultsInvalidated();
+    }
+  }
+
+  function updateSettings(action: Parameters<typeof batchSettingsReducer>[1]) {
+    invalidateResults();
+    dispatch(action);
+  }
+
   async function startBatch(paths: string[], resetAll: boolean) {
     if (isRunning || !output.outputDirectory || paths.length === 0 || !settingsAreValid) return;
+    try {
+      await preflightOutputDirectory(output.outputDirectory);
+      setFolderError(null);
+    } catch (error) {
+      const message = normalizeOutputError(error);
+      setFolderError(message);
+      setStatusMessage(message);
+      return;
+    }
     const token: CancellationToken = { cancelled: false };
     cancellation.current = token;
     setIsRunning(true);
     setLastBatchPaths(paths);
+    setStatusMessage(`Processing ${paths.length} ${paths.length === 1 ? "image" : "images"}.`);
     onBatchStart(paths, resetAll);
     onRunningChange(true);
     try {
@@ -108,11 +153,16 @@ export function TransformationOptions({
       cancellation.current = null;
       setIsRunning(false);
       onRunningChange(false);
+      setStatusMessage("Batch complete. Review the results below.");
+      requestAnimationFrame(() => primaryAction.current?.focus());
     }
   }
 
   function cancelBatch() {
-    if (cancellation.current) cancellation.current.cancelled = true;
+    if (cancellation.current) {
+      cancellation.current.cancelled = true;
+      setStatusMessage("Cancellation requested. Active files will finish safely.");
+    }
   }
 
   async function chooseOutputDirectory() {
@@ -120,6 +170,7 @@ export function TransformationOptions({
     try {
       const directory = await open({ directory: true, multiple: false });
       if (directory) {
+        invalidateResults();
         setOutput((current) => ({ ...current, outputDirectory: directory }));
         setFolderError(null);
       }
@@ -128,12 +179,24 @@ export function TransformationOptions({
     }
   }
 
+  async function showOutputFolder() {
+    if (!output.outputDirectory) return;
+    try {
+      await openOutputFolder(output.outputDirectory);
+      setFolderError(null);
+    } catch (error) {
+      const message = normalizeOutputError(error);
+      setFolderError(message);
+      setStatusMessage(message);
+    }
+  }
+
   function numberValue(value: number): number | "" {
     return Number.isNaN(value) ? "" : value;
   }
 
   function updateNumber(key: ResizeValueKey, value: number) {
-    dispatch({ type: "setResizeValue", key, value });
+    updateSettings({ type: "setResizeValue", key, value });
   }
 
   return (
@@ -158,7 +221,7 @@ export function TransformationOptions({
                   value={format.value}
                   checked={settings.outputFormat === format.value}
                   disabled={isRunning}
-                  onChange={() => dispatch({ type: "setOutputFormat", value: format.value })}
+                  onChange={() => updateSettings({ type: "setOutputFormat", value: format.value })}
                 />
                 <span>{format.label}</span>
               </label>
@@ -180,7 +243,7 @@ export function TransformationOptions({
               disabled={!qualityApplies || isRunning}
               aria-label="Quality"
               onChange={(event) =>
-                dispatch({ type: "setQuality", value: event.currentTarget.valueAsNumber })
+                updateSettings({ type: "setQuality", value: event.currentTarget.valueAsNumber })
               }
             />
             <NumericInput
@@ -191,7 +254,7 @@ export function TransformationOptions({
               disabled={!qualityApplies || isRunning}
               error={errors.quality}
               suffix="%"
-              onChange={(value) => dispatch({ type: "setQuality", value })}
+              onChange={(value) => updateSettings({ type: "setQuality", value })}
             />
           </div>
           <p className="field-note">
@@ -207,7 +270,7 @@ export function TransformationOptions({
               value={settings.resize.mode}
               disabled={isRunning}
               onChange={(event) =>
-                dispatch({ type: "setResizeMode", value: event.currentTarget.value as ResizeMode })
+                updateSettings({ type: "setResizeMode", value: event.currentTarget.value as ResizeMode })
               }
             >
               {resizeModes.map((mode) => (
@@ -223,7 +286,7 @@ export function TransformationOptions({
                 checked={settings.allowUpscaling}
                 disabled={settings.resize.mode === "none" || isRunning}
                 onChange={(event) =>
-                  dispatch({ type: "setAllowUpscaling", value: event.currentTarget.checked })
+                  updateSettings({ type: "setAllowUpscaling", value: event.currentTarget.checked })
                 }
               />
               Allow upscaling
@@ -249,18 +312,24 @@ export function TransformationOptions({
                   ? compactOutputDirectory(output.outputDirectory)
                   : "No folder selected"}
               </span>
+              {output.outputDirectory && (
+                <button className="text-button" type="button" disabled={isRunning} onClick={() => void showOutputFolder()}>
+                  Open Output Folder
+                </button>
+              )}
             </div>
             <label className="conflict-control">
               <span>When a file exists</span>
               <select
                 value={output.conflictPolicy}
                 disabled={isRunning}
-                onChange={(event) =>
+                onChange={(event) => {
+                  invalidateResults();
                   setOutput((current) => ({
                     ...current,
                     conflictPolicy: event.currentTarget.value as ConflictPolicy,
-                  }))
-                }
+                  }));
+                }}
               >
                 <option value="createCopy">Create Copy</option>
                 <option value="overwrite">Overwrite</option>
@@ -268,7 +337,7 @@ export function TransformationOptions({
               </select>
             </label>
           </div>
-          {folderError && <p className="field-error">{folderError}</p>}
+          {folderError && <p className="field-error" role="alert">{folderError}</p>}
         </fieldset>
       </div>
 
@@ -285,6 +354,10 @@ export function TransformationOptions({
       {!isRunning && lastBatchPaths.length > 0 && completedCount === lastBatchPaths.length && (
         <BatchResults summary={summary} />
       )}
+
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {statusMessage}
+      </p>
 
       <div className="options-panel__action">
         <span>
@@ -313,6 +386,7 @@ export function TransformationOptions({
             </button>
           )}
           <button
+            ref={primaryAction}
             className="primary-button"
             type="button"
             disabled={!futureProcessingReady || isRunning}
@@ -335,20 +409,37 @@ function BatchResults({ summary }: { summary: ReturnType<typeof summarizeBatch> 
       ? `${formatFileSize(summary.sizeDifferenceBytes)} larger`
       : "No size change";
   return (
-    <section className="batch-results" aria-labelledby="batch-results-title">
-      <h3 id="batch-results-title">Batch complete</h3>
-      <p>{summary.attempted} {summary.attempted === 1 ? "image" : "images"} processed</p>
+    <section className="batch-results" aria-labelledby="batch-results-title" tabIndex={-1}>
+      <div className="batch-results__heading">
+        <div>
+          <h3 id="batch-results-title">Chisel complete</h3>
+          <p>{summary.total} {summary.total === 1 ? "image" : "images"} in this run</p>
+        </div>
+        {summary.written > 0 && <strong>{sizeMessage}</strong>}
+      </div>
       <div className="batch-results__counts">
-        <span>{summary.written} written</span>
-        <span>{summary.skipped} skipped</span>
-        <span>{summary.failed} failed</span>
-        <span>{summary.cancelled} cancelled</span>
+        <span><strong>{summary.written}</strong> written</span>
+        <span><strong>{summary.skipped}</strong> skipped</span>
+        <span><strong>{summary.failed}</strong> failed</span>
+        <span><strong>{summary.cancelled}</strong> cancelled</span>
       </div>
       {summary.written > 0 && (
-        <p>{formatFileSize(summary.originalBytes)} → {formatFileSize(summary.outputBytes)} · {sizeMessage}</p>
+        <p>Written files: {formatFileSize(summary.originalBytes)} → {formatFileSize(summary.outputBytes)}</p>
       )}
     </section>
   );
+}
+
+function normalizeOutputError(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return "The output folder is unavailable. Choose it again and retry.";
 }
 
 interface ResizeFieldsProps {

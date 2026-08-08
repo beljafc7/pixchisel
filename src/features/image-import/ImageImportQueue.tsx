@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ImportDropZone } from "./components/ImportDropZone";
 import { ImageQueueList } from "./components/ImageQueueList";
 import { formatFileSize } from "./format";
@@ -19,6 +19,8 @@ const imageFilters = [
 export function ImageImportQueue() {
   const [processingStates, setProcessingStates] = useState<Record<string, FileProcessingState>>({});
   const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
+  const selectImagesButton = useRef<HTMLButtonElement>(null);
   const {
     queue,
     importPaths,
@@ -41,6 +43,7 @@ export function ImageImportQueue() {
 
       if (paths) {
         await importPaths(paths);
+        requestAnimationFrame(() => selectImagesButton.current?.focus());
       }
     } catch (error) {
       reportImportError(error);
@@ -73,27 +76,29 @@ export function ImageImportQueue() {
   function clearQueueAndState() {
     clearQueue();
     setProcessingStates({});
+    setWorkspaceResetVersion((version) => version + 1);
+    requestAnimationFrame(() => selectImagesButton.current?.focus());
   }
 
-  if (queue.length === 0) {
-    return (
-      <section className="import-workspace import-workspace--empty" aria-label="Import images">
+  const isEmpty = queue.length === 0;
+  const totalSize = validQueueSize(queue);
+
+  return (
+    <section className={`import-workspace${isEmpty ? " import-workspace--empty" : ""}`} aria-label={isEmpty ? "Import images" : undefined} aria-labelledby={isEmpty ? undefined : "queue-title"}>
+      {isEmpty ? (
+        <>
         <ImportDropZone
           isActive={isDragActive}
           isImporting={isImporting}
           disabled={isBatchRunning}
           onSelect={selectImages}
+          buttonRef={selectImagesButton}
         />
         {importError && <p className="workspace-error">{importError}</p>}
-        <p className="local-note">Files are inspected locally and never uploaded.</p>
-      </section>
-    );
-  }
-
-  const totalSize = validQueueSize(queue);
-
-  return (
-    <section className="import-workspace" aria-labelledby="queue-title">
+        <p className="local-note">Processed locally. Nothing is uploaded.</p>
+        </>
+      ) : (
+        <>
       <div className="queue-header">
         <div>
           <p className="welcome__eyebrow">Image queue</p>
@@ -106,6 +111,7 @@ export function ImageImportQueue() {
             isImporting={isImporting}
             disabled={isBatchRunning}
             onSelect={selectImages}
+            buttonRef={selectImagesButton}
           />
           <button
             className="text-button"
@@ -132,13 +138,20 @@ export function ImageImportQueue() {
         </span>
         {isImporting && <span>Adding images…</span>}
       </footer>
+        </>
+      )}
+      <div className="options-container" hidden={isEmpty}>
       <TransformationOptions
         readyPaths={queue.filter((item) => item.status === "ready").map((item) => item.path)}
+        queuePaths={queue.map((item) => item.id)}
         processingStates={processingStates}
         onBatchStart={startBatchState}
         onItemState={updateItemState}
         onRunningChange={setIsBatchRunning}
+        onResultsInvalidated={() => setProcessingStates({})}
+        workspaceResetVersion={workspaceResetVersion}
       />
+      </div>
     </section>
   );
 }

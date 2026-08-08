@@ -11,9 +11,11 @@ has no account system, backend, cloud storage, or telemetry by default.
 
 ## Status
 
-The repository contains the local import queue, orientation-aware thumbnails,
-validated transformation settings, and an in-memory native transformation
-pipeline. Final output writing and batch processing are not implemented yet.
+The repository contains the complete local import-to-output workflow:
+orientation-aware thumbnails, validated batch settings, native transformation,
+safe output writing, bounded processing, cancellation, results, destination
+preflight, and native output-folder opening. macOS builds are working; Windows
+architecture is prepared but still requires platform runtime validation.
 
 ## Technology
 

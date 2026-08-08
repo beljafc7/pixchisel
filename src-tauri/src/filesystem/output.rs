@@ -73,6 +73,7 @@ pub enum WriteImageErrorCode {
     CleanupFailed,
     UnsafeSourceDestination,
     TransformFailed,
+    OpenOutputFolderFailed,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -83,7 +84,7 @@ pub struct WriteImageError {
 }
 
 impl WriteImageError {
-    fn new(code: WriteImageErrorCode, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: WriteImageErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -214,7 +215,7 @@ fn available_copy_path(destination: &Path) -> Result<PathBuf, WriteImageError> {
     ))
 }
 
-fn validate_output_directory(directory: &Path) -> Result<(), WriteImageError> {
+pub(crate) fn validate_output_directory(directory: &Path) -> Result<(), WriteImageError> {
     match fs::metadata(directory) {
         Ok(metadata) if metadata.is_dir() => Ok(()),
         Ok(_) | Err(_) => Err(WriteImageError::new(
@@ -248,10 +249,14 @@ impl TemporaryOutput {
                         "PixChisel cannot write to the selected output folder.",
                     ))
                 }
-                Err(_) => {
+                Err(error) => {
                     return Err(WriteImageError::new(
                         WriteImageErrorCode::TempFileCreationFailed,
-                        "A temporary output file could not be created.",
+                        if error.kind() == io::ErrorKind::StorageFull {
+                            "The output drive does not have enough free space."
+                        } else {
+                            "A temporary output file could not be created. Check that the output folder is still available."
+                        },
                     ))
                 }
             }
@@ -267,10 +272,16 @@ impl TemporaryOutput {
         file.write_all(bytes)
             .and_then(|_| file.flush())
             .and_then(|_| file.sync_all())
-            .map_err(|_| {
+            .map_err(|error| {
                 WriteImageError::new(
                     WriteImageErrorCode::WriteFailed,
-                    "The transformed image could not be written completely.",
+                    if error.kind() == io::ErrorKind::StorageFull {
+                        "The output drive ran out of space before the image was written."
+                    } else if error.kind() == io::ErrorKind::PermissionDenied {
+                        "PixChisel lost permission to write to the output folder."
+                    } else {
+                        "The image could not be written completely. Check the output folder and try again."
+                    },
                 )
             })
     }
@@ -310,8 +321,38 @@ fn finalize_without_overwrite(temp: &Path, destination: &Path) -> Result<(), Wri
             WriteImageErrorCode::DestinationConflict,
             "An output with that name appeared before the write completed.",
         )),
-        Err(_) => Err(finalize_failed()),
+        Err(_) => copy_without_overwrite(temp, destination),
     }
+}
+
+fn copy_without_overwrite(temp: &Path, destination: &Path) -> Result<(), WriteImageError> {
+    let mut source = File::open(temp).map_err(|_| finalize_failed())?;
+    let mut output = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)
+    {
+        Ok(output) => output,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            return Err(WriteImageError::new(
+                WriteImageErrorCode::DestinationConflict,
+                "An output with that name appeared before the write completed.",
+            ))
+        }
+        Err(_) => return Err(finalize_failed()),
+    };
+
+    if io::copy(&mut source, &mut output)
+        .and_then(|_| output.flush())
+        .and_then(|_| output.sync_all())
+        .is_err()
+    {
+        drop(output);
+        let _ = fs::remove_file(destination);
+        return Err(finalize_failed());
+    }
+    drop(output);
+    fs::remove_file(temp).map_err(|_| cleanup_failed())
 }
 
 #[cfg(unix)]
@@ -675,6 +716,24 @@ mod tests {
             .file_name()
             .to_string_lossy()
             .starts_with(".pixchisel-")));
+    }
+
+    #[test]
+    fn portable_copy_finalization_never_overwrites_and_removes_its_temp_file() {
+        let directory = TestDirectory::new();
+        let temporary = directory.0.join("complete.tmp");
+        let destination = directory.0.join("photo.png");
+        fs::write(&temporary, b"complete output").unwrap();
+
+        copy_without_overwrite(&temporary, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"complete output");
+        assert!(!temporary.exists());
+
+        let second_temporary = directory.0.join("second.tmp");
+        fs::write(&second_temporary, b"must not replace").unwrap();
+        let error = copy_without_overwrite(&second_temporary, &destination).unwrap_err();
+        assert_eq!(error.code, WriteImageErrorCode::DestinationConflict);
+        assert_eq!(fs::read(&destination).unwrap(), b"complete output");
     }
 
     #[test]

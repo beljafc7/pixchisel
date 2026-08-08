@@ -120,7 +120,7 @@ cannot honor.
 - Allow cancellation and clearly distinguish completed, cancelled, skipped, and
   failed files.
 - Continue past an individual failure where safe.
-- Run at most three transformations concurrently while preserving queue order in
+- Run at most two transformations concurrently while preserving queue order in
   the interface.
 - Track ready, processing, written, skipped, failed, and cancelled states
   separately from import errors.
@@ -141,6 +141,9 @@ cannot honor.
   successful encoding.
 - Retain the selected directory and conflict policy only for the current session.
 - Default conflict behavior to create-copy.
+- Verify that the selected directory still exists and accepts a temporary write
+  before starting a batch.
+- Offer an Open Output Folder action after a destination has been selected.
 
 Output filenames retain the source stem. JPEG normalizes to `.jpg`, PNG to
 `.png`, and WebP to `.webp`; keep-original uses the detected source format and
@@ -165,6 +168,12 @@ The summary must handle outputs larger than inputs without misleading language.
 Only written files contribute to byte totals. Skipped, failed, and cancelled
 counts remain visible independently. A zero-byte original total must never cause
 division by zero.
+
+Results describe one configuration snapshot. Changing any transformation or
+output setting clears the previous row results and summary. Removing an item
+removes its result from the summary. Clear All removes queue-specific results,
+errors, and thumbnail references while retaining session settings and the output
+folder.
 
 ## Privacy and offline requirements
 
@@ -198,3 +207,11 @@ are explicitly outside V1.
 - Progress, cancellation, errors, and results remain understandable throughout.
 - Original files remain safe under every conflict policy.
 - Packaged builds run on supported macOS and Windows versions.
+
+## Alpha readiness
+
+PixChisel Alpha is ready when the macOS end-to-end workflow has been manually
+verified, no known data-loss defect remains, automated tests and packaged builds
+pass, branding and version metadata are correct, output safety is validated, and
+major workflow blockers are closed. Windows must either pass its platform QA
+checklist or be explicitly labelled not yet tested for that alpha.

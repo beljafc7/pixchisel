@@ -198,16 +198,29 @@ pool. React receives only paths and typed result metadata; encoded bytes never
 cross the command boundary.
 
 The output directory is chosen with the existing native dialog permission and
-retained only in React session state. No general filesystem plugin permission is
-granted. The native command validates that the directory still exists before
-processing and performs every write itself.
+retained only in React session state. No general filesystem or shell plugin
+permission is granted. Before a batch starts, a narrow native preflight verifies
+that the destination still exists, is a directory, and accepts an
+exclusive-create probe file. Every individual write validates the directory
+again. Free space is deliberately not predicted because that check would become
+stale during processing.
+
+Opening the destination is also a narrow native command. It validates the saved
+directory and invokes Finder on macOS or Explorer on Windows; React cannot pass
+an executable, arguments, or arbitrary shell command.
 
 Output names retain the source stem and replace only the extension: `.jpg` for
 JPEG, `.png` for PNG, and `.webp` for WebP. Keep-original resolves the format from
 file content and uses the normalized extension. Create-copy checks deterministic
 `name (1).ext`, `name (2).ext` candidates up to 10,000. Final creation uses an
 exclusive same-filesystem hard link from the complete temporary file, preventing
-a race from overwriting a newly appeared destination.
+a race from overwriting a newly appeared destination. If the destination
+filesystem does not support hard links, PixChisel falls back to opening the final
+path with exclusive creation and copying the already-complete temporary file.
+The fallback never opens an existing destination, synchronizes the new file, and
+removes a partial destination if copying fails. Hard links remain preferable
+because their finalization is atomic; the portable fallback can briefly expose a
+partial new file to other processes, but never overwrites user data.
 
 Skip checks an existing deterministic destination before decoding or encoding.
 Overwrite always transforms fully first, then writes, flushes, and syncs an
@@ -228,11 +241,16 @@ on normal error paths where possible.
 
 Phase 2.3 keeps orchestration state in React and reuses the existing
 `write_transformed_image` command for every ready queue item. A small worker pool
-starts at most three native writes concurrently. Rust remains responsible for
+starts at most two native writes concurrently. Rust remains responsible for
 each transformation and safe filesystem finalization; encoded bytes never enter
 React. Import-error rows are excluded before a batch starts, and result updates
 are keyed by source path so the visible queue remains in import order even when
 native calls finish out of order.
+
+The limit was reduced from three after a debug-build QA run with three concurrent
+24-megapixel JPEG transformations reached roughly 555 MiB resident memory. Two
+workers preserve parallel progress while reducing peak pressure on lower-memory
+systems. The limit should be revisited only with platform measurements.
 
 Per-file processing state is separate from import validity: `ready`,
 `processing`, `written`, `skipped`, `failed`, or `cancelled`. One failed native
@@ -253,11 +271,18 @@ and sums original/output bytes only for written results. A zero-byte original
 total produces a zero percentage, while larger output is described as larger
 rather than negative savings.
 
-Completed states remain visible while users adjust the queue or settings. A new
-full Chisel action explicitly resets processing state and processes every current
-ready item. Retry Failed & Cancelled resets and processes only those items,
-leaving written and skipped results untouched. Queue mutation and all processing
-settings are locked only while a batch is active.
+Completed states remain visible until the queue or batch configuration changes.
+Changing format, quality, resize, upscaling, output directory, or conflict policy
+clears all prior row results and the summary so they cannot appear to describe
+the new configuration. Removing one item removes only that item's result and
+recalculates the summary. A new full Chisel action resets processing state and
+processes every current ready item. Retry Failed & Cancelled resets and processes
+only those items, leaving written and skipped results untouched.
+
+Clear All removes the queue, import errors, thumbnail references, processing
+states, and summary. The mounted options state deliberately retains batch
+settings and the selected output folder for convenient repeated work. Queue
+mutation and all processing settings are locked only while a batch is active.
 
 ## Thumbnail pipeline
 

@@ -66,7 +66,7 @@ performed.
 ### Phase 2.3 — Batch boundary — complete
 
 - Connect the existing Chisel action to bounded native batch orchestration.
-  **Complete with three concurrent native writes.**
+  **Complete with two concurrent native writes after Phase 2.4 memory QA.**
 - Reuse the single-image writer for each ready queue item. **Complete.**
 - Add stable job and per-file state without returning encoded bytes to React.
   **Complete.**
@@ -77,13 +77,18 @@ performed.
 
 ### Phase 2.4 — Workflow refinement
 
+- Add destination preflight and actionable write-failure messages. **Complete.**
+- Add a native Open Output Folder affordance without exposing shell access.
+  **Complete.**
+- Clear completed results when settings change; retain settings and destination
+  across Clear All. **Complete.**
+- Add a safe create-copy fallback for filesystems without hard links.
+  **Complete; external-volume runtime QA remains.**
+- Review focus, screen-reader announcements, compact layout, and repeated runs.
+  **Complete for the implemented UI; formal assistive-technology QA remains.**
 - Perform focused macOS and Windows end-to-end QA with representative large
-  batches and destination filesystems.
-- Refine recovery for output-directory removal and disk-full conditions.
-- Add an open-output-folder affordance and decide whether completed status should
-  reset immediately on settings mutation.
-- Review focus movement and screen-reader announcements through completion,
-  cancellation, retry, and repeated-batch flows.
+  batches and destination filesystems. **macOS partially complete; Windows and
+  removable-drive testing remain.**
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.
@@ -95,7 +100,7 @@ source-file safety.
 - Add cooperative cancellation and temporary-file cleanup. **Complete.**
 - Isolate individual file failures. **Complete.**
 - Keep the UI responsive for large queues. **Complete by using asynchronous
-  native calls with a three-item worker pool.**
+  native calls with a two-item worker pool.**
 
 Exit condition: a batch can complete or cancel cleanly with an accurate state for
 every file.
@@ -123,6 +128,33 @@ knowledge.
 
 Exit condition: release candidates meet privacy, safety, quality, and packaging
 requirements on both platforms.
+
+### Windows QA checklist
+
+Windows is architecturally supported but is not release-tested. Before claiming
+Windows alpha support, verify on a supported Windows installation:
+
+- native multi-file picker and directory picker;
+- drag-and-drop paths, including multiple drives;
+- thumbnail generation and asset-protocol display;
+- JPEG, PNG, WebP, and keep-original output writing;
+- overwrite backup, replacement, failure restoration, and cleanup;
+- create-copy on NTFS and a removable filesystem without hard-link support;
+- per-file failure isolation when the destination disappears or becomes read-only;
+- Open Output Folder in Explorer;
+- taskbar, Explorer executable, and installer icons at small and large sizes;
+- long paths and filenames near Windows limits; and
+- Unicode source and destination paths.
+
+### Alpha readiness checklist
+
+- [ ] Complete the macOS manual end-to-end matrix.
+- [ ] Confirm there is no known source overwrite or data-loss defect.
+- [x] Keep automated frontend and native tests passing.
+- [x] Keep branding and runtime/build version metadata aligned.
+- [x] Validate safe output behavior in automated tests.
+- [x] Close known blocking workflow and accessibility issues.
+- [ ] Validate Windows or label the first alpha as macOS-only/not-yet-tested.
 
 ## Post-V1 candidates
 

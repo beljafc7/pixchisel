@@ -50,7 +50,8 @@ export type WriteImageErrorCode =
   | "finalizeFailed"
   | "cleanupFailed"
   | "unsafeSourceDestination"
-  | "transformFailed";
+  | "transformFailed"
+  | "openOutputFolderFailed";
 
 export interface WriteImageError {
   code: WriteImageErrorCode;

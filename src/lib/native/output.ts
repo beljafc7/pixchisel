@@ -15,6 +15,22 @@ export async function writeTransformedImage(
   }
 }
 
+export async function preflightOutputDirectory(directory: string): Promise<void> {
+  try {
+    await invoke("preflight_output_directory", { directory });
+  } catch (error) {
+    throw normalizeWriteImageError(error);
+  }
+}
+
+export async function openOutputFolder(directory: string): Promise<void> {
+  try {
+    await invoke("open_output_folder", { directory });
+  } catch (error) {
+    throw normalizeWriteImageError(error);
+  }
+}
+
 function normalizeWriteImageError(error: unknown): WriteImageError {
   if (
     typeof error === "object" &&

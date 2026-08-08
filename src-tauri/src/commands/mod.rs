@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use tauri::State;
 
 use crate::filesystem::{
+    open_output_folder as open_folder, preflight_output_directory as preflight_directory,
     write_transformed_image as write_image_file, WriteImageError, WriteImageRequest,
     WriteImageResult,
 };
@@ -18,6 +19,20 @@ pub async fn inspect_images(
     tauri::async_runtime::spawn_blocking(move || inspect_image_files(paths))
         .await
         .map_err(|_| InspectImageError::internal())
+}
+
+#[tauri::command]
+pub async fn preflight_output_directory(directory: PathBuf) -> Result<(), WriteImageError> {
+    tauri::async_runtime::spawn_blocking(move || preflight_directory(&directory))
+        .await
+        .map_err(|_| WriteImageError::internal())?
+}
+
+#[tauri::command]
+pub async fn open_output_folder(directory: PathBuf) -> Result<(), WriteImageError> {
+    tauri::async_runtime::spawn_blocking(move || open_folder(&directory))
+        .await
+        .map_err(|_| WriteImageError::internal())?
 }
 
 #[tauri::command]

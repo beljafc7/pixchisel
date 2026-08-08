@@ -87,7 +87,9 @@ export function useImageImportQueue() {
 
   const clearQueue = useCallback(() => {
     knownPaths.current.clear();
+    pendingPaths.current.clear();
     setQueue([]);
+    setImportError(null);
     void clearThumbnailCache().catch(() => undefined);
   }, []);
 

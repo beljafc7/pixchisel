@@ -1,9 +1,12 @@
+import type { RefObject } from "react";
+
 interface ImportDropZoneProps {
   compact?: boolean;
   isActive: boolean;
   isImporting: boolean;
   disabled?: boolean;
   onSelect: () => void;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 export function ImportDropZone({
@@ -12,6 +15,7 @@ export function ImportDropZone({
   isImporting,
   disabled = false,
   onSelect,
+  buttonRef,
 }: ImportDropZoneProps) {
   return (
     <div className={`drop-zone${isActive ? " drop-zone--active" : ""}${compact ? " drop-zone--compact" : ""}`}>
@@ -24,7 +28,7 @@ export function ImportDropZone({
           <p>JPG, PNG, and WebP</p>
         </>
       )}
-      <button className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting || disabled}>
+      <button ref={buttonRef} className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting || disabled}>
         {compact ? "Add Images" : isImporting ? "Adding…" : "Select Images"}
       </button>
       {isActive && <span className="drop-zone__overlay">Drop to add images</span>}
