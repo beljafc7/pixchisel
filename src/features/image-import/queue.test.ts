@@ -35,6 +35,24 @@ describe("image import queue", () => {
     ]);
   });
 
+  it("appends discovered images without reordering the existing queue", () => {
+    const existing = addInspectionResults([], [
+      readyResult("/existing/z.png", 10),
+      readyResult("/existing/a.png", 20),
+    ]);
+    const updated = addInspectionResults(existing, [
+      readyResult("/folder/a.png", 30),
+      readyResult("/existing/z.png", 10),
+      readyResult("/folder/b.png", 40),
+    ]);
+    expect(updated.map((item) => item.path)).toEqual([
+      "/existing/z.png",
+      "/existing/a.png",
+      "/folder/a.png",
+      "/folder/b.png",
+    ]);
+  });
+
   it("removes one item without affecting the rest", () => {
     const queue = addInspectionResults([], [
       readyResult("/images/a.png", 10),

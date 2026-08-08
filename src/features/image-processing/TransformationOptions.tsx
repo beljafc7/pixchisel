@@ -18,6 +18,7 @@ import { isBatchSettingsValid, validateBatchSettings } from "./validation";
 import {
   compactOutputDirectory,
   createConflictPolicyUpdate,
+  V1_CONFLICT_OPTIONS,
   createDefaultOutputSettings,
   isFutureProcessingReady,
 } from "./output";
@@ -323,9 +324,9 @@ export function TransformationOptions({
                   setOutput(updateConflictPolicy);
                 }}
               >
-                <option value="createCopy">Create Copy</option>
-                <option value="overwrite">Overwrite</option>
-                <option value="skip">Skip</option>
+                {V1_CONFLICT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </label>
           </div>

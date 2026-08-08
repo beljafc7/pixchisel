@@ -47,6 +47,8 @@ loaded queue. All workflows adapt into the same native `BatchSettings` engine.
 ### Input and file list
 
 - Accept multiple image files through drag and drop and a native file picker.
+- Accept folders through drag and drop or a native directory picker, recursively
+  discovering JPEG, PNG, and WebP candidates before content inspection.
 - Recognize supported inputs and report unsupported or unreadable files clearly.
 - Show thumbnail, filename, pixel dimensions, format, and file size.
 - Allow files to be removed before processing.
@@ -62,6 +64,11 @@ loaded queue. All workflows adapt into the same native `BatchSettings` engine.
 V1 accepts JPEG/JPG, PNG, and WebP input. BMP remains unsupported. The decoded file signature, rather than
 the filename extension alone, determines whether an input is supported. Output
 formats are fixed below.
+
+Folder discovery is deterministic, does not follow directory symlinks, and
+ignores dot-hidden entries. Unsupported files found inside folders are silently
+omitted; explicitly supplied unsupported files retain actionable errors.
+Overlapping folders and direct-file duplicates resolve to one path-based item.
 
 ### Convert
 
@@ -137,7 +144,8 @@ started after cancellation becomes Cancelled.
 ### Output
 
 - Let the user select an output directory.
-- Support overwrite, create-copy, and skip conflict behavior.
+- Expose Create Copy and Replace Existing conflict behavior. Replace Existing
+  maps to the native `overwrite` policy.
 - Remove transferable image metadata from transformed output in the current V1
   pipeline and communicate that behavior directly.
 - Avoid partially written final files by writing safely and finalizing only after
@@ -157,6 +165,11 @@ Overwrite never encodes directly over an existing destination. The complete
 encoded output is first written to a temporary file in the destination directory
 and safely finalized. If source and destination resolve to the same filename,
 the source remains intact until the replacement is complete and ready.
+
+The output folder remains an explicit selection and is never inferred from an
+imported folder. V1 flattens discovered images into that destination rather than
+preserving source hierarchy. The native `skip` policy remains for compatibility
+but is not exposed in the V1 interface.
 
 ### Results
 

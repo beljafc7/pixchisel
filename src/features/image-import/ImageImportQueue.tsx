@@ -29,6 +29,7 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
     clearQueue,
     reportImportError,
     isImporting,
+    isScanning,
     importError,
   } = useImageImportQueue();
   const isDragActive = useNativeFileDrop(importPaths, isBatchRunning);
@@ -44,6 +45,19 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
 
       if (paths) {
         await importPaths(paths);
+        requestAnimationFrame(() => selectImagesButton.current?.focus());
+      }
+    } catch (error) {
+      reportImportError(error);
+    }
+  }
+
+  async function selectFolder() {
+    if (isBatchRunning) return;
+    try {
+      const directory = await open({ directory: true, multiple: false });
+      if (directory) {
+        await importPaths([directory]);
         requestAnimationFrame(() => selectImagesButton.current?.focus());
       }
     } catch (error) {
@@ -109,9 +123,11 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
           isImporting={isImporting}
           disabled={isBatchRunning}
           onSelect={selectImages}
+          onSelectFolder={selectFolder}
           buttonRef={selectImagesButton}
         />
         {importError && <p className="workspace-error">{importError}</p>}
+        {isScanning && <p className="local-note" role="status">Scanning folder…</p>}
         <p className="local-note">Processed locally. Nothing is uploaded.</p>
         </>
       ) : (
@@ -128,6 +144,7 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
             isImporting={isImporting}
             disabled={isBatchRunning}
             onSelect={selectImages}
+            onSelectFolder={selectFolder}
             buttonRef={selectImagesButton}
           />
           <button
@@ -153,7 +170,7 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
         <span>
           {queue.length} {queue.length === 1 ? "file" : "files"} • {formatFileSize(totalSize)}
         </span>
-        {isImporting && <span>Adding images…</span>}
+        {isScanning ? <span>Scanning folder…</span> : isImporting && <span>Adding images…</span>}
       </footer>
         </>
       )}

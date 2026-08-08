@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
   clearThumbnailCache,
+  discoverImages,
   generateThumbnails,
   inspectImages,
   normalizeInspectImageError,
@@ -13,6 +14,7 @@ import type { ImageQueueItem } from "./types";
 export function useImageImportQueue() {
   const [queue, setQueue] = useState<ImageQueueItem[]>([]);
   const [activeImports, setActiveImports] = useState(0);
+  const [activeScans, setActiveScans] = useState(0);
   const [importError, setImportError] = useState<string | null>(null);
   const knownPaths = useRef(new Set<string>());
   const pendingPaths = useRef(new Set<string>());
@@ -48,7 +50,23 @@ export function useImageImportQueue() {
   }, []);
 
   const importPaths = useCallback(async (paths: string[]) => {
-    const uniquePaths = [...new Set(paths)].filter(
+    setActiveScans((count) => count + 1);
+    setImportError(null);
+    let resolvedPaths: string[];
+    try {
+      resolvedPaths = await discoverImages(paths);
+    } catch (error) {
+      setImportError(
+        typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
+          ? error.message
+          : "The selected folder could not be scanned.",
+      );
+      return;
+    } finally {
+      setActiveScans((count) => count - 1);
+    }
+
+    const uniquePaths = [...new Set(resolvedPaths)].filter(
       (path) => !knownPaths.current.has(path) && !pendingPaths.current.has(path),
     );
     if (uniquePaths.length === 0) {
@@ -103,7 +121,8 @@ export function useImageImportQueue() {
     removeItem,
     clearQueue,
     reportImportError,
-    isImporting: activeImports > 0,
+    isImporting: activeImports > 0 || activeScans > 0,
+    isScanning: activeScans > 0,
     importError,
   };
 }

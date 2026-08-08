@@ -18,6 +18,17 @@ export async function inspectImages(paths: string[]): Promise<ImageInspectionRes
   }
 }
 
+export async function discoverImages(paths: string[]): Promise<string[]> {
+  try {
+    return await invoke<string[]>("discover_images", { paths });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+      throw error;
+    }
+    throw { code: "internal", message: "The selected folder could not be scanned." } satisfies InspectImageError;
+  }
+}
+
 export async function generateThumbnails(paths: string[]): Promise<ThumbnailResult[]> {
   return invoke<ThumbnailResult[]>("generate_thumbnails", { paths });
 }

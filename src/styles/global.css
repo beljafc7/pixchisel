@@ -228,6 +228,14 @@ input:focus-visible {
   display: contents;
 }
 
+.drop-zone__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .drop-zone__icon {
   display: grid;
   width: 54px;

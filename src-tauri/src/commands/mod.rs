@@ -9,9 +9,16 @@ use crate::filesystem::{
     WriteImageRequest, WriteImageResult,
 };
 use crate::imaging::{
-    generate_thumbnail_files, inspect_image_files, ImageInspectionResult, InspectImageError,
-    ThumbnailCache, ThumbnailError, ThumbnailResult,
+    discover_image_paths, generate_thumbnail_files, inspect_image_files, DiscoverImagesError,
+    ImageInspectionResult, InspectImageError, ThumbnailCache, ThumbnailError, ThumbnailResult,
 };
+
+#[tauri::command]
+pub async fn discover_images(paths: Vec<PathBuf>) -> Result<Vec<PathBuf>, DiscoverImagesError> {
+    tauri::async_runtime::spawn_blocking(move || discover_image_paths(paths))
+        .await
+        .map_err(|_| DiscoverImagesError::internal())?
+}
 
 #[tauri::command]
 pub async fn inspect_images(

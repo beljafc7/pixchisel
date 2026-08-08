@@ -6,6 +6,7 @@ interface ImportDropZoneProps {
   isImporting: boolean;
   disabled?: boolean;
   onSelect: () => void;
+  onSelectFolder: () => void;
   buttonRef?: RefObject<HTMLButtonElement | null>;
 }
 
@@ -15,6 +16,7 @@ export function ImportDropZone({
   isImporting,
   disabled = false,
   onSelect,
+  onSelectFolder,
   buttonRef,
 }: ImportDropZoneProps) {
   return (
@@ -24,14 +26,19 @@ export function ImportDropZone({
           <div className="drop-zone__icon" aria-hidden="true">
             +
           </div>
-          <h1>Drop images here</h1>
+          <h1>Drop images or folders here</h1>
           <p>JPG, PNG, and WebP</p>
         </>
       )}
-      <button ref={buttonRef} className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting || disabled}>
-        {compact ? "Add Images" : isImporting ? "Adding…" : "Select Images"}
-      </button>
-      {isActive && <span className="drop-zone__overlay">Drop to add images</span>}
+      <div className="drop-zone__actions">
+        <button ref={buttonRef} className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting || disabled}>
+          {compact ? "Add Images" : isImporting ? "Adding…" : "Select Images"}
+        </button>
+        <button className="secondary-button" type="button" onClick={onSelectFolder} disabled={isImporting || disabled}>
+          {compact ? "Add Folder" : "Select Folder"}
+        </button>
+      </div>
+      {isActive && <span className="drop-zone__overlay">Drop images or folders to add</span>}
     </div>
   );
 }

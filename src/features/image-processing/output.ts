@@ -3,6 +3,11 @@ import { isBatchSettingsValid } from "./validation";
 
 export type ConflictPolicy = "overwrite" | "createCopy" | "skip";
 
+export const V1_CONFLICT_OPTIONS = [
+  { value: "createCopy", label: "Create Copy" },
+  { value: "overwrite", label: "Replace Existing" },
+] as const satisfies ReadonlyArray<{ value: ConflictPolicy; label: string }>;
+
 export interface OutputSettings {
   outputDirectory: string | null;
   conflictPolicy: ConflictPolicy;

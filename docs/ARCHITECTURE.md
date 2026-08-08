@@ -84,6 +84,20 @@ remain colocated rather than being split into global folders by file type.
 - Decode, transform, encode, and safely write images.
 - Schedule batch jobs outside the UI thread.
 - Track cancellation and emit per-file and aggregate progress.
+
+## Folder discovery
+
+React sends selected or dropped paths to the narrow `discover_images` command.
+Rust keeps explicit files in input order and recursively expands directories on
+the blocking task pool. Folder candidates use case-insensitive JPEG, PNG, and
+WebP extensions as an initial filter, are sorted by full path, and then enter the
+existing content-based inspector.
+
+Traversal skips symbolic links to prevent cycles and ignores dot-hidden entries.
+Unsupported folder contents are silent, while explicitly supplied unsupported
+files remain actionable. Results are deduplicated by path and append without
+reordering the existing queue. Output selection remains separate; V1 flattens
+folder batches into the selected destination rather than preserving hierarchy.
 - Apply output naming and conflict rules.
 - Return structured results and errors.
 

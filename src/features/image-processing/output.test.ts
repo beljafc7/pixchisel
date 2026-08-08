@@ -8,6 +8,7 @@ import {
   createWriteImageRequest,
   isFutureProcessingReady,
   parseWriteImageResult,
+  V1_CONFLICT_OPTIONS,
 } from "./output";
 
 describe("output settings", () => {
@@ -18,14 +19,22 @@ describe("output settings", () => {
     });
   });
 
+  it("exposes only Create Copy and Replace Existing in the V1 selector", () => {
+    expect(V1_CONFLICT_OPTIONS).toEqual([
+      { value: "createCopy", label: "Create Copy" },
+      { value: "overwrite", label: "Replace Existing" },
+    ]);
+    expect(V1_CONFLICT_OPTIONS.some((option) => option.value === ("skip" as string))).toBe(false);
+  });
+
   it("captures a conflict selection before the browser clears the event target", () => {
     let event: { currentTarget: { value: string } | null } = {
-      currentTarget: { value: "skip" },
+      currentTarget: { value: "overwrite" },
     };
     const update = createConflictPolicyUpdate(event.currentTarget!.value);
     event.currentTarget = null;
 
-    expect(update(createDefaultOutputSettings()).conflictPolicy).toBe("skip");
+    expect(update(createDefaultOutputSettings()).conflictPolicy).toBe("overwrite");
   });
 
   it("requires an output folder for future processing readiness", () => {

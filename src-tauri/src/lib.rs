@@ -23,6 +23,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::discover_images,
             commands::inspect_images,
             commands::generate_thumbnails,
             commands::release_thumbnails,

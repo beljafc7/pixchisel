@@ -102,6 +102,18 @@ performed.
 - Revalidate create-copy, overwrite, and skip across serialized workflow
   settings. **Automated coverage complete; desktop click-through QA remains.**
 
+### Phase 2.6 — Folder import and conflict simplification
+
+- Add native recursive discovery for selected and dropped folders. **Complete.**
+- Reuse bounded inspection, thumbnails, path deduplication, and queue ordering.
+  **Complete.**
+- Skip directory symlinks and silently ignore unsupported folder contents.
+  **Complete.**
+- Expose only Create Copy and Replace Existing in V1. **Complete; native Skip is
+  retained internally for compatibility.**
+- Keep output selection explicit and flatten folder batches into the selected
+  destination. **Complete.**
+
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.
 
