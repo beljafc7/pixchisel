@@ -72,20 +72,30 @@ Format-specific controls should appear only when meaningful. Transparent input
 converted to JPEG uses a white background by default; the UI should communicate
 that behavior where it affects the result.
 
+Transformation settings are batch-level and session-only. The Phase 1.4 defaults
+are keep original format, quality 82, no resize, no upscaling, and metadata
+preservation. Settings are intentionally not persisted between launches.
+
 ### Compression
 
 - Provide a quality control for lossy output formats.
 - Present the control in understandable terms while keeping encoder-specific
   details out of the primary interface.
+- Quality accepts whole numbers from 1 through 100 and is active for JPEG and
+  WebP. It is disabled for PNG and keep-original output. Phase 2 must confirm the
+  encoder strategy for lossy WebP before this intent is processed.
 
 ### Resize
 
-- Set width and height.
-- Preserve aspect ratio when requested.
+- Resize to a target width or target height.
+- Fit within a maximum width and maximum height.
 - Resize by percentage.
-- Constrain by maximum width and/or maximum height.
+- Always preserve aspect ratio in V1.
 - Never produce zero or invalid dimensions.
 - Do not upscale by default.
+- Dimension values accept whole numbers from 1 through 32,768 pixels. Percentage
+  accepts whole numbers from 1 through 1,000. These conservative UI limits keep
+  future native requests bounded; Rust must validate them again before processing.
 
 ### Batch processing
 

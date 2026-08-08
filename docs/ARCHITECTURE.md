@@ -104,6 +104,25 @@ Desktop file drops are received through Tauri's webview drag/drop events, which
 provide native filesystem paths. Browser drag/drop and HTML file inputs are not
 used.
 
+## Batch settings model
+
+Phase 1.4 introduces one frontend-owned `BatchSettings` value for the complete
+batch. It contains only JSON-serializable primitives: output format, quality, a
+resize mode plus its numeric values, allow-upscaling, and remove-metadata. A pure
+reducer owns every update, and pure validation derives field errors and request
+readiness. UI controls do not maintain competing copies of these values.
+
+The model retains values for inactive resize modes so a user can switch modes
+without losing edits. Validation applies only to controls meaningful for the
+selected output format and resize mode. Empty numeric controls are represented as
+`NaN` transiently and fail validation; only valid settings may cross the future
+native command boundary. Before processing is implemented, the Rust request type
+must mirror this shape and independently enforce the same limits.
+
+Settings live only for the mounted loaded-queue workspace. There is no browser
+storage, database, or native preference persistence. The Chisel action remains
+disabled until Phase 2 supplies a real native processing command.
+
 ## Thumbnail pipeline
 
 Ready imports request thumbnails through `generate_thumbnails(paths)`. The command

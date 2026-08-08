@@ -2,7 +2,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ImportDropZone } from "./components/ImportDropZone";
 import { ImageQueueList } from "./components/ImageQueueList";
 import { formatFileSize } from "./format";
-import { validQueueSize } from "./queue";
+import { TransformationOptions } from "../image-processing/TransformationOptions";
+import { validQueueCount, validQueueSize } from "./queue";
 import { useImageImportQueue } from "./useImageImportQueue";
 import { useNativeFileDrop } from "./useNativeFileDrop";
 
@@ -56,6 +57,7 @@ export function ImageImportQueue() {
   }
 
   const totalSize = validQueueSize(queue);
+  const readyImageCount = validQueueCount(queue);
 
   return (
     <section className="import-workspace" aria-labelledby="queue-title">
@@ -91,6 +93,7 @@ export function ImageImportQueue() {
         </span>
         {isImporting && <span>Adding images…</span>}
       </footer>
+      <TransformationOptions readyImageCount={readyImageCount} />
     </section>
   );
 }

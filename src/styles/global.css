@@ -71,6 +71,7 @@ button:focus-visible {
   display: flex;
   min-height: 0;
   padding: 32px 24px;
+  overflow-y: auto;
 }
 
 .app-footer {
@@ -410,6 +411,239 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+.options-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #ded8cd;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 48%);
+}
+
+.options-panel__heading,
+.options-panel__action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.options-panel__heading h2 {
+  margin: 0;
+  color: #24211c;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.options-panel__scope,
+.options-panel__action,
+.field-note {
+  color: #787166;
+  font-size: 12px;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 22px;
+  margin-top: 18px;
+}
+
+.option-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.option-group legend {
+  margin-bottom: 8px;
+  color: #38342e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.option-group--wide {
+  grid-column: 1 / -1;
+}
+
+.option-group--metadata {
+  padding-top: 14px;
+  border-top: 1px solid #e4dfd6;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.segmented-control label {
+  position: relative;
+}
+
+.segmented-control input {
+  position: absolute;
+  opacity: 0;
+}
+
+.segmented-control span {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  padding: 6px 8px;
+  border: 1px solid #c9c0b3;
+  border-left-width: 0;
+  color: #625c53;
+  background: #fffdfa;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.segmented-control label:first-child span {
+  border-left-width: 1px;
+  border-radius: 8px 0 0 8px;
+}
+
+.segmented-control label:last-child span {
+  border-radius: 0 8px 8px 0;
+}
+
+.segmented-control input:checked + span {
+  z-index: 1;
+  border-color: #b8502b;
+  color: #8d391f;
+  background: #f8e8df;
+  font-weight: 700;
+}
+
+.segmented-control input:focus-visible + span {
+  outline: 3px solid rgb(184 80 43 / 28%);
+  outline-offset: 2px;
+}
+
+.field-note {
+  margin: 7px 0 0;
+}
+
+.quality-control,
+.resize-row,
+.option-checks,
+.check-control,
+.numeric-field__input {
+  display: flex;
+  align-items: center;
+}
+
+.quality-control {
+  gap: 12px;
+}
+
+.quality-control > input[type="range"] {
+  min-width: 90px;
+  flex: 1;
+  accent-color: #b8502b;
+}
+
+.resize-row {
+  min-height: 38px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resize-row select,
+.numeric-field__input {
+  min-height: 36px;
+  border: 1px solid #c9c0b3;
+  border-radius: 8px;
+  color: #38342e;
+  background: #fffdfa;
+}
+
+.resize-row select {
+  min-width: 140px;
+  padding: 6px 30px 6px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.numeric-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.numeric-field__input {
+  padding-right: 8px;
+  color: #787166;
+  font-size: 12px;
+}
+
+.numeric-field__input input {
+  width: 76px;
+  min-height: 34px;
+  padding: 6px 4px 6px 9px;
+  border: 0;
+  outline: 0;
+  color: #38342e;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.numeric-field__input:focus-within {
+  outline: 3px solid rgb(184 80 43 / 28%);
+  outline-offset: 2px;
+}
+
+.numeric-field--error .numeric-field__input {
+  border-color: #a3362d;
+}
+
+.field-error {
+  margin-top: 4px;
+  color: #a3362d;
+  font-size: 11px;
+}
+
+.dimension-separator {
+  color: #8b847a;
+}
+
+.option-checks {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.check-control {
+  gap: 7px;
+  color: #4d4841;
+  font-size: 13px;
+}
+
+.check-control input {
+  accent-color: #b8502b;
+}
+
+.options-panel__action {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e4dfd6;
+}
+
+.options-panel__action .primary-button:disabled {
+  cursor: not-allowed;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
+
 .workspace-error {
   margin: 0 0 12px;
   color: #a3362d;
@@ -428,6 +662,14 @@ button:focus-visible {
 
   .queue-item__dimensions {
     display: none;
+  }
+
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .option-group--wide {
+    grid-column: auto;
   }
 }
 
@@ -450,6 +692,24 @@ button:focus-visible {
   .queue-item__dimensions {
     display: none;
   }
+
+  .options-panel__heading,
+  .options-panel__action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .segmented-control {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .segmented-control span,
+  .segmented-control label:first-child span,
+  .segmented-control label:last-child span {
+    border-width: 1px;
+    border-radius: 8px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -471,12 +731,14 @@ button:focus-visible {
   .app-header__name,
   .drop-zone h1,
   .queue-header h1,
+  .options-panel__heading h2,
   .queue-item__name {
     color: #f2eee7;
   }
 
   .drop-zone,
-  .queue-list {
+  .queue-list,
+  .options-panel {
     border-color: #48423a;
     background: rgb(255 255 255 / 3%);
   }
@@ -499,6 +761,35 @@ button:focus-visible {
 
   .queue-item {
     border-color: #3d3933;
+  }
+
+  .option-group--metadata,
+  .options-panel__action {
+    border-color: #3d3933;
+  }
+
+  .option-group legend,
+  .check-control {
+    color: #ddd7cf;
+  }
+
+  .segmented-control span,
+  .resize-row select,
+  .numeric-field__input {
+    border-color: #554e45;
+    color: #c3bcb2;
+    background: #2a2723;
+  }
+
+  .segmented-control input:checked + span {
+    border-color: #df7751;
+    color: #f0a182;
+    background: #392720;
+  }
+
+  .numeric-field__input input,
+  .resize-row select {
+    color: #eee9e2;
   }
 
   .queue-item--error {
@@ -526,7 +817,10 @@ button:focus-visible {
   .queue-item__size,
   .queue-summary,
   .local-note,
-  .drop-zone p {
+  .drop-zone p,
+  .options-panel__scope,
+  .options-panel__action,
+  .field-note {
     color: #aaa399;
   }
 

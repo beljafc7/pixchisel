@@ -4,6 +4,7 @@ import {
   addInspectionResults,
   applyThumbnailResults,
   removeQueueItem,
+  validQueueCount,
   validQueueSize,
 } from "./queue";
 
@@ -56,6 +57,7 @@ describe("image import queue", () => {
     const queue = addInspectionResults([], [readyResult("/images/a.png", 42), errorResult]);
 
     expect(validQueueSize(queue)).toBe(42);
+    expect(validQueueCount(queue)).toBe(1);
   });
 
   it("attaches thumbnails without changing missing or error queue items", () => {

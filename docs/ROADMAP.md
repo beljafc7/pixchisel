@@ -28,15 +28,19 @@ future features should not be mixed silently.
   1.2.**
 - Establish typed frontend/native request and error contracts. **Complete for
   import inspection.**
+- Add the batch transformation-options UI and typed, validated frontend settings
+  model. **Complete in Phase 1.4; no processing is performed.**
 
 Exit condition: users can build and edit a multi-image queue; no processing is
 performed.
 
 ## Phase 2 — Single-image processing
 
-- Add JPEG, PNG, WebP, and keep-original output selection.
-- Add quality and resize modes with validation.
-- Define transparency and no-upscale behavior.
+- Mirror and validate `BatchSettings` in Rust.
+- Implement JPEG, PNG, WebP, and keep-original encoding using the selected
+  output setting; decide the lossy WebP encoder strategy first.
+- Implement quality and aspect-preserving resize behavior.
+- Apply the documented white JPEG transparency background and no-upscale policy.
 - Add output directory selection and the three conflict policies.
 - Implement safe native output writes.
 - Add metadata removal where supported.

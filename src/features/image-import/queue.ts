@@ -32,6 +32,10 @@ export function validQueueSize(queue: ImageQueueItem[]): number {
   );
 }
 
+export function validQueueCount(queue: ImageQueueItem[]): number {
+  return queue.filter((item) => item.status === "ready").length;
+}
+
 export function applyThumbnailResults(
   queue: ImageQueueItem[],
   results: ThumbnailResult[],

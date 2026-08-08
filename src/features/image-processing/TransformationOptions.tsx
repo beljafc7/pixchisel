@@ -1,0 +1,218 @@
+import { useReducer } from "react";
+import {
+  batchSettingsReducer,
+  createDefaultBatchSettings,
+  isQualityApplicable,
+  MAX_DIMENSION,
+  MAX_PERCENTAGE,
+  type OutputFormat,
+  type ResizeMode,
+  type ResizeValueKey,
+} from "./settings";
+import { isBatchSettingsValid, validateBatchSettings } from "./validation";
+
+interface TransformationOptionsProps {
+  readyImageCount: number;
+}
+
+const outputFormats: Array<{ value: OutputFormat; label: string }> = [
+  { value: "original", label: "Keep original" },
+  { value: "jpeg", label: "JPEG" },
+  { value: "png", label: "PNG" },
+  { value: "webp", label: "WebP" },
+];
+
+const resizeModes: Array<{ value: ResizeMode; label: string }> = [
+  { value: "none", label: "No resize" },
+  { value: "width", label: "Width" },
+  { value: "height", label: "Height" },
+  { value: "fit", label: "Fit within" },
+  { value: "percentage", label: "Percentage" },
+];
+
+export function TransformationOptions({ readyImageCount }: TransformationOptionsProps) {
+  const [settings, dispatch] = useReducer(batchSettingsReducer, undefined, createDefaultBatchSettings);
+  const errors = validateBatchSettings(settings);
+  const qualityApplies = isQualityApplicable(settings.outputFormat);
+  const canChisel = readyImageCount > 0 && isBatchSettingsValid(settings);
+
+  function numberValue(value: number): number | "" {
+    return Number.isNaN(value) ? "" : value;
+  }
+
+  function updateNumber(key: ResizeValueKey, value: number) {
+    dispatch({ type: "setResizeValue", key, value });
+  }
+
+  return (
+    <section className="options-panel" aria-labelledby="options-title">
+      <div className="options-panel__heading">
+        <div>
+          <p className="welcome__eyebrow">Batch settings</p>
+          <h2 id="options-title">Transformation options</h2>
+        </div>
+        <span className="options-panel__scope">Applies to all ready images</span>
+      </div>
+
+      <div className="options-grid">
+        <fieldset className="option-group">
+          <legend>Output format</legend>
+          <div className="segmented-control">
+            {outputFormats.map((format) => (
+              <label key={format.value}>
+                <input
+                  type="radio"
+                  name="output-format"
+                  value={format.value}
+                  checked={settings.outputFormat === format.value}
+                  onChange={() => dispatch({ type: "setOutputFormat", value: format.value })}
+                />
+                <span>{format.label}</span>
+              </label>
+            ))}
+          </div>
+          {settings.outputFormat === "jpeg" && (
+            <p className="field-note">Transparent areas will use a white background.</p>
+          )}
+        </fieldset>
+
+        <fieldset className="option-group">
+          <legend>Quality</legend>
+          <div className="quality-control">
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={numberValue(settings.quality)}
+              disabled={!qualityApplies}
+              aria-label="Quality"
+              onChange={(event) =>
+                dispatch({ type: "setQuality", value: event.currentTarget.valueAsNumber })
+              }
+            />
+            <NumericInput
+              label="Quality value"
+              value={settings.quality}
+              min={1}
+              max={100}
+              disabled={!qualityApplies}
+              error={errors.quality}
+              suffix="%"
+              onChange={(value) => dispatch({ type: "setQuality", value })}
+            />
+          </div>
+          <p className="field-note">
+            {qualityApplies ? "Higher quality creates larger files." : "Not used for this format."}
+          </p>
+        </fieldset>
+
+        <fieldset className="option-group option-group--wide">
+          <legend>Resize</legend>
+          <div className="resize-row">
+            <select
+              aria-label="Resize mode"
+              value={settings.resize.mode}
+              onChange={(event) =>
+                dispatch({ type: "setResizeMode", value: event.currentTarget.value as ResizeMode })
+              }
+            >
+              {resizeModes.map((mode) => (
+                <option key={mode.value} value={mode.value}>{mode.label}</option>
+              ))}
+            </select>
+            <ResizeFields settings={settings} errors={errors} updateNumber={updateNumber} />
+          </div>
+          <div className="option-checks">
+            <label className="check-control">
+              <input
+                type="checkbox"
+                checked={settings.allowUpscaling}
+                disabled={settings.resize.mode === "none"}
+                onChange={(event) =>
+                  dispatch({ type: "setAllowUpscaling", value: event.currentTarget.checked })
+                }
+              />
+              Allow upscaling
+            </label>
+            <span className="field-note">Smaller images won't be enlarged.</span>
+          </div>
+        </fieldset>
+
+        <fieldset className="option-group option-group--wide option-group--metadata">
+          <legend>Metadata</legend>
+          <label className="check-control">
+            <input
+              type="checkbox"
+              checked={settings.removeMetadata}
+              onChange={(event) =>
+                dispatch({ type: "setRemoveMetadata", value: event.currentTarget.checked })
+              }
+            />
+            Remove metadata from output files
+          </label>
+        </fieldset>
+      </div>
+
+      <div className="options-panel__action">
+        <span>{canChisel ? "Settings are valid" : "Check the highlighted settings"}</span>
+        <button className="primary-button" type="button" disabled title="Processing arrives in Phase 2">
+          Chisel {readyImageCount} {readyImageCount === 1 ? "Image" : "Images"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+interface ResizeFieldsProps {
+  settings: ReturnType<typeof createDefaultBatchSettings>;
+  errors: ReturnType<typeof validateBatchSettings>;
+  updateNumber: (key: ResizeValueKey, value: number) => void;
+}
+
+function ResizeFields({ settings, errors, updateNumber }: ResizeFieldsProps) {
+  const common = { min: 1, max: MAX_DIMENSION };
+  switch (settings.resize.mode) {
+    case "width":
+      return <NumericInput label="Width" value={settings.resize.width} {...common} error={errors.width} suffix="px" onChange={(value) => updateNumber("width", value)} />;
+    case "height":
+      return <NumericInput label="Height" value={settings.resize.height} {...common} error={errors.height} suffix="px" onChange={(value) => updateNumber("height", value)} />;
+    case "fit":
+      return <><NumericInput label="Max width" value={settings.resize.maxWidth} {...common} error={errors.maxWidth} suffix="px" onChange={(value) => updateNumber("maxWidth", value)} /><span className="dimension-separator">×</span><NumericInput label="Max height" value={settings.resize.maxHeight} {...common} error={errors.maxHeight} suffix="px" onChange={(value) => updateNumber("maxHeight", value)} /></>;
+    case "percentage":
+      return <NumericInput label="Percentage" value={settings.resize.percentage} min={1} max={MAX_PERCENTAGE} error={errors.percentage} suffix="%" onChange={(value) => updateNumber("percentage", value)} />;
+    case "none":
+      return <span className="field-note">Original dimensions will be kept.</span>;
+  }
+}
+
+interface NumericInputProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  suffix: string;
+  disabled?: boolean;
+  error?: string;
+  onChange: (value: number) => void;
+}
+
+function NumericInput({ label, value, suffix, error, onChange, ...inputProps }: NumericInputProps) {
+  const errorId = `${label.toLowerCase().replace(/ /g, "-")}-error`;
+  return (
+    <label className={`numeric-field${error ? " numeric-field--error" : ""}`}>
+      <span className="sr-only">{label}</span>
+      <span className="numeric-field__input">
+        <input
+          type="number"
+          value={Number.isNaN(value) ? "" : value}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
+          onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+          {...inputProps}
+        />
+        <span>{suffix}</span>
+      </span>
+      {error && <span className="field-error" id={errorId}>{error}</span>}
+    </label>
+  );
+}
