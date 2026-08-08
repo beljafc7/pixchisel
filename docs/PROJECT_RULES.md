@@ -62,6 +62,20 @@ Paths and user input must be validated in Rust before filesystem work begins.
 - Versioning scripts do not create Git tags or releases. Source-control and
   publishing actions remain explicit, separate release steps.
 
+## Branding assets
+
+- `assets/branding/pixchisel-icon.png` is the canonical square application icon
+  master for operating-system and installer surfaces.
+- `assets/branding/pixchisel-logo.png` is the canonical horizontal logo master.
+  It is not an application-icon source and should only be used where its wide
+  composition, light lettering, and surrounding space are appropriate.
+- Files under `src-tauri/icons/` are generated derivatives. Never edit them by
+  hand or treat them as source artwork.
+- Regenerate platform icon derivatives from the canonical icon master with
+  `npm run tauri icon -- assets/branding/pixchisel-icon.png`.
+- Keep both canonical masters unchanged unless replacement artwork is supplied
+  and approved as an intentional branding change.
+
 ## Scope control
 
 V1 includes JPEG, PNG, and WebP output. AVIF, HEIC/HEIF, TIFF, JPEG XL, crop,
