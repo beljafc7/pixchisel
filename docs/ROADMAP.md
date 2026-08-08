@@ -13,9 +13,13 @@ future features should not be mixed silently.
 
 ## Phase 1 — Import and inspection
 
-- Decide and document the exact V1 input format matrix.
-- Evaluate and select the Rust imaging dependency.
-- Add native file picker and drag-and-drop ingestion.
+- Decide and document the exact V1 input format matrix. **Complete:** JPEG, PNG,
+  and WebP.
+- Evaluate and select the Rust imaging dependency. **Complete:** `image` with
+  restricted format features.
+- Add single-file native selection and typed inspection. **Complete in Phase
+  1.1.**
+- Expand selection to the multi-file picker and add drag-and-drop ingestion.
 - Inspect supported files in Rust.
 - Display thumbnail, filename, dimensions, format, and file size.
 - Handle duplicates, unsupported formats, and corrupt images.

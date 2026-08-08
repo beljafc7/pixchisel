@@ -86,8 +86,11 @@ completion should arrive as events that contain the job identifier and stable
 file identifier. Cancellation should be cooperative: stop scheduling new work,
 allow safe interruption points, clean temporary output, and report final states.
 
-Exact command names and event payloads should be defined alongside the first
-processing spike rather than frozen prematurely.
+The first command is `inspect_image(path)`. It performs blocking file inspection
+on Tauri's blocking task pool and returns filename, extension, detected format,
+dimensions, and file size. Failures cross the boundary as a structured error with
+a stable code and user-safe message. Batch command and event payloads should be
+defined alongside the first processing spike rather than frozen prematurely.
 
 ## File safety
 
@@ -108,10 +111,27 @@ avoid overwhelming the UI while remaining responsive.
 
 ## Dependency policy
 
-Choose the Rust image library during Phase 1 using a small capability spike.
-Evaluate JPEG, PNG, and WebP decode/encode coverage, metadata handling, quality,
-binary size, maintenance, security posture, licensing, and Windows/macOS support.
-Do not add several overlapping libraries before that decision.
+PixChisel uses the pure-Rust `image` crate with default features disabled and only
+the `jpeg`, `png`, and `webp` features enabled. It provides content-based format
+detection and header-level dimension inspection without decoding the full pixel
+buffer. It is mature, actively maintained, dual-licensed under MIT or Apache-2.0,
+and introduces no native system library requirement on macOS or Windows.
+
+The selected crate can read all V1 formats and encode JPEG, PNG, and lossless
+WebP, keeping inspection and most future transformations in one ecosystem. Its
+pure-Rust WebP encoder does not support lossy quality settings; Phase 2 must
+evaluate whether lossless-only WebP satisfies the product or whether a narrowly
+scoped encoder dependency is justified. This limitation is not a reason to add a
+native system dependency during inspection work.
+
+Restricting features avoids the wider default format set, Rayon, AVIF tooling,
+and unnecessary binary/dependency cost. The crate can expose some orientation,
+EXIF, XMP, and ICC data depending on the decoder, but preservation and removal
+behavior must be evaluated explicitly before metadata controls are built. No
+secondary metadata library is added in Phase 1.1.
+
+The official Tauri dialog plugin supplies the native file picker. Only its open
+permission is granted; save and message dialog permissions remain disabled.
 
 Frontend dependencies should remain minimal. Tauri plugins are added only for
 required native capabilities and granted the narrowest practical permissions.

@@ -49,8 +49,9 @@ such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
 - Show thumbnail, filename, pixel dimensions, format, and file size.
 - Allow files to be removed before processing.
 
-The exact V1 input format matrix must be confirmed during Phase 1. Output formats
-are fixed below.
+V1 accepts JPEG/JPG, PNG, and WebP input. The decoded file signature, rather than
+the filename extension alone, determines whether an input is supported. Output
+formats are fixed below.
 
 ### Output format
 
@@ -59,9 +60,9 @@ are fixed below.
 - PNG
 - WebP
 
-Format-specific controls should appear only when meaningful. Conversions that
-cannot preserve transparency must warn the user or apply a documented background
-policy.
+Format-specific controls should appear only when meaningful. Transparent input
+converted to JPEG uses a white background by default; the UI should communicate
+that behavior where it affects the result.
 
 ### Compression
 
@@ -76,7 +77,7 @@ policy.
 - Resize by percentage.
 - Constrain by maximum width and/or maximum height.
 - Never produce zero or invalid dimensions.
-- Do not upscale by default; the final V1 behavior requires a product decision.
+- Do not upscale by default.
 
 ### Batch processing
 

@@ -11,9 +11,10 @@ has no account system, backend, cloud storage, or telemetry by default.
 
 ## Status
 
-The repository currently contains the initial project foundation and a minimal
-application shell. Image import and processing are intentionally not implemented
-yet.
+The repository currently contains the initial project foundation and a temporary
+single-file inspection screen. Native Rust inspection reads JPEG, PNG, and WebP
+dimensions and file details; image transformation and the final import workflow
+are intentionally not implemented yet.
 
 ## Technology
 
