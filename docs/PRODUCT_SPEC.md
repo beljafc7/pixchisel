@@ -1,0 +1,139 @@
+# Product Specification
+
+## Product summary
+
+PixChisel is a free desktop utility that converts, compresses, and resizes image
+files without sending them off-device. It serves people who want a quick,
+trustworthy alternative to online image tools.
+
+## Positioning
+
+**Convert. Compress. Resize. Locally.**
+
+The experience should be fast and linear: drop images, adjust options, process,
+and finish. “Chisel” may be used as the primary action and in completion copy,
+such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
+
+## Goals
+
+- Make common image preparation tasks easy for non-specialists.
+- Process multiple images efficiently in one operation.
+- Make local-only behavior obvious and credible.
+- Deliver a consistent macOS and Windows experience.
+- Preserve a small, focused product surface.
+
+## Non-goals
+
+- Accounts, syncing, collaboration, or cloud storage
+- Browser or server-based processing
+- Professional image editing
+- Automated asset pipelines or watched folders in V1
+- Supporting every image format in V1
+
+## V1 workflow
+
+1. The user adds one or more supported images with drag and drop or a file picker.
+2. PixChisel displays each file's thumbnail, name, dimensions, format, and size.
+3. The user chooses output format, compression, resize, metadata, destination,
+   and naming conflict options.
+4. The user starts the batch with a clearly labelled Chisel action.
+5. PixChisel reports per-file and overall progress and allows cancellation.
+6. PixChisel displays a result summary and makes the output location easy to open.
+
+## Functional requirements
+
+### Input and file list
+
+- Accept multiple image files through drag and drop and a native file picker.
+- Recognize supported inputs and report unsupported or unreadable files clearly.
+- Show thumbnail, filename, pixel dimensions, format, and file size.
+- Allow files to be removed before processing.
+
+The exact V1 input format matrix must be confirmed during Phase 1. Output formats
+are fixed below.
+
+### Output format
+
+- Keep original format
+- JPEG
+- PNG
+- WebP
+
+Format-specific controls should appear only when meaningful. Conversions that
+cannot preserve transparency must warn the user or apply a documented background
+policy.
+
+### Compression
+
+- Provide a quality control for lossy output formats.
+- Present the control in understandable terms while keeping encoder-specific
+  details out of the primary interface.
+
+### Resize
+
+- Set width and height.
+- Preserve aspect ratio when requested.
+- Resize by percentage.
+- Constrain by maximum width and/or maximum height.
+- Never produce zero or invalid dimensions.
+- Do not upscale by default; the final V1 behavior requires a product decision.
+
+### Batch processing
+
+- Apply configured options to all files in the batch.
+- Display progress for every file and for the batch overall.
+- Allow cancellation and clearly distinguish completed, cancelled, skipped, and
+  failed files.
+- Continue past an individual failure where safe.
+
+### Output
+
+- Let the user select an output directory.
+- Support overwrite, create-copy, and skip conflict behavior.
+- Optionally remove image metadata.
+- Avoid partially written final files by writing safely and finalizing only after
+  successful encoding.
+
+### Results
+
+Show:
+
+- original total size;
+- final total size;
+- absolute amount saved; and
+- percentage saved.
+
+The summary must handle outputs larger than inputs without misleading language.
+
+## Privacy and offline requirements
+
+- No image or image-derived data leaves the device.
+- No feature requires an internet connection after installation.
+- No account or identity is required.
+- No telemetry, analytics, crash upload, advertising, or tracking is enabled by
+  default.
+- Dependencies must not introduce hidden network behavior.
+
+## Experience requirements
+
+- Use one primary workspace rather than dashboard navigation.
+- Keep advanced choices secondary to the main flow.
+- Provide keyboard-accessible controls, visible focus, semantic status updates,
+  and sufficient contrast.
+- Use native dialogs for file and directory selection.
+- Follow the operating system's light/dark preference where practical.
+
+## Deferred features
+
+AVIF, HEIC/HEIF, TIFF, JPEG XL, crop, watermark, metadata inspector, presets,
+recursive folder processing, watch folders, upscaling, and image comparison tools
+are explicitly outside V1.
+
+## V1 success criteria
+
+- A user can process a mixed multi-file batch without network access.
+- Output follows the selected format, quality, resize, metadata, destination, and
+  conflict settings.
+- Progress, cancellation, errors, and results remain understandable throughout.
+- Original files remain safe under every conflict policy.
+- Packaged builds run on supported macOS and Windows versions.

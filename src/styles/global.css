@@ -1,0 +1,183 @@
+:root {
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #24211c;
+  background: #f4f1eb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: auto 1fr auto;
+}
+
+.app-header,
+.app-footer {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  border-color: #ded8cd;
+  color: #656057;
+  font-size: 13px;
+}
+
+.app-header {
+  justify-content: space-between;
+  border-bottom: 1px solid #ded8cd;
+  background: rgb(250 248 244 / 88%);
+}
+
+.app-header__name {
+  color: #24211c;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app-header__tagline {
+  letter-spacing: 0.01em;
+}
+
+.app-content {
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+}
+
+.welcome {
+  width: min(100%, 640px);
+  text-align: center;
+}
+
+.welcome__mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 22px;
+  place-items: center;
+  border-radius: 14px;
+  color: #fffaf0;
+  background: #b8502b;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  box-shadow: 0 8px 20px rgb(80 39 21 / 16%);
+}
+
+.welcome__eyebrow {
+  margin: 0 0 8px;
+  color: #a14224;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.welcome h1 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.welcome__description {
+  max-width: 480px;
+  margin: 18px auto 32px;
+  color: #656057;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.welcome__placeholder {
+  display: grid;
+  min-height: 152px;
+  place-items: center;
+  border: 1px dashed #c9c0b3;
+  border-radius: 16px;
+  color: #787166;
+  background: rgb(255 255 255 / 42%);
+  font-size: 14px;
+}
+
+.app-footer {
+  gap: 8px;
+  border-top: 1px solid #ded8cd;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4d8b62;
+}
+
+@media (max-width: 560px) {
+  .app-header__tagline {
+    display: none;
+  }
+
+  .app-content {
+    padding: 36px 18px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f2eee7;
+    background: #1d1b18;
+  }
+
+  .app-header,
+  .app-footer {
+    border-color: #3d3933;
+    color: #aaa399;
+  }
+
+  .app-header {
+    background: rgb(31 29 26 / 90%);
+  }
+
+  .app-header__name {
+    color: #f2eee7;
+  }
+
+  .welcome__eyebrow {
+    color: #e88a62;
+  }
+
+  .welcome__description {
+    color: #aaa399;
+  }
+
+  .welcome__placeholder {
+    border-color: #4f4941;
+    color: #aaa399;
+    background: rgb(255 255 255 / 3%);
+  }
+}
