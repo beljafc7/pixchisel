@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
-export function useNativeFileDrop(onDrop: (paths: string[]) => void) {
+export function useNativeFileDrop(onDrop: (paths: string[]) => void, disabled = false) {
   const [isDragActive, setIsDragActive] = useState(false);
   const onDropRef = useRef(onDrop);
+  const disabledRef = useRef(disabled);
   onDropRef.current = onDrop;
+  disabledRef.current = disabled;
 
   useEffect(() => {
     let disposed = false;
@@ -12,6 +14,10 @@ export function useNativeFileDrop(onDrop: (paths: string[]) => void) {
 
     getCurrentWebview()
       .onDragDropEvent((event) => {
+        if (disabledRef.current) {
+          setIsDragActive(false);
+          return;
+        }
         if (event.payload.type === "drop") {
           setIsDragActive(false);
           onDropRef.current(event.payload.paths);

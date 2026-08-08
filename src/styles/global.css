@@ -404,6 +404,31 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.processing-detail {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.processing-detail--processing {
+  color: #9b4a2e;
+}
+
+.processing-detail--written {
+  color: #3f7954;
+}
+
+.processing-detail--skipped,
+.processing-detail--cancelled {
+  color: #777066;
+}
+
+.processing-detail--failed {
+  color: #a3362d;
+}
+
 .icon-button {
   width: 32px;
   height: 32px;
@@ -697,6 +722,66 @@ button:focus-visible {
   cursor: not-allowed;
 }
 
+.options-panel__buttons {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.batch-progress,
+.batch-results {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e4dfd6;
+}
+
+.batch-progress__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: #625c53;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-progress progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  accent-color: #b8502b;
+}
+
+.batch-results h3,
+.batch-results p {
+  margin: 0;
+}
+
+.batch-results h3 {
+  color: #38342e;
+  font-size: 14px;
+}
+
+.batch-results p,
+.batch-results__counts {
+  color: #6e675d;
+  font-size: 12px;
+}
+
+.batch-results p {
+  margin-top: 7px;
+}
+
+.batch-results__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 9px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -829,12 +914,15 @@ button:focus-visible {
 
   .option-group--metadata,
   .output-options,
+  .batch-progress,
+  .batch-results,
   .options-panel__action {
     border-color: #3d3933;
   }
 
   .option-group legend,
-  .check-control {
+  .check-control,
+  .batch-results h3 {
     color: #ddd7cf;
   }
 
@@ -889,8 +977,19 @@ button:focus-visible {
   .options-panel__action,
   .output-folder > span,
   .conflict-control,
-  .field-note {
+  .field-note,
+  .batch-progress__labels,
+  .batch-results p,
+  .batch-results__counts {
     color: #aaa399;
+  }
+
+  .processing-detail--written {
+    color: #88c79d;
+  }
+
+  .processing-detail--processing {
+    color: #f0a182;
   }
 
   .queue-item__error,

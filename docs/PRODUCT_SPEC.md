@@ -120,6 +120,16 @@ cannot honor.
 - Allow cancellation and clearly distinguish completed, cancelled, skipped, and
   failed files.
 - Continue past an individual failure where safe.
+- Run at most three transformations concurrently while preserving queue order in
+  the interface.
+- Track ready, processing, written, skipped, failed, and cancelled states
+  separately from import errors.
+- Cancellation stops starting files; already-active files finish their safe
+  native operation, and queued files become cancelled.
+- Lock queue mutation, import, output, and transformation controls while a batch
+  is active.
+- Allow failed and cancelled items to be retried without reprocessing written or
+  skipped items.
 
 ### Output
 
@@ -152,6 +162,9 @@ Show:
 - percentage saved.
 
 The summary must handle outputs larger than inputs without misleading language.
+Only written files contribute to byte totals. Skipped, failed, and cancelled
+counts remain visible independently. A zero-byte original total must never cause
+division by zero.
 
 ## Privacy and offline requirements
 

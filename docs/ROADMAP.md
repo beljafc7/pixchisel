@@ -63,25 +63,39 @@ performed.
 - Surface the metadata-preservation limitation before enabling production output.
   **Complete: V1 transformed outputs explicitly remove metadata.**
 
-### Phase 2.3 — Batch boundary
+### Phase 2.3 — Batch boundary — complete
 
 - Connect the existing Chisel action to bounded native batch orchestration.
-- Reuse the single-image writer for each ready queue item.
+  **Complete with three concurrent native writes.**
+- Reuse the single-image writer for each ready queue item. **Complete.**
 - Add stable job and per-file state without returning encoded bytes to React.
+  **Complete.**
 - Add progress and cooperative cancellation without weakening temporary-file
-  cleanup or conflict guarantees.
+  cleanup or conflict guarantees. **Complete at safe file boundaries.**
 - Keep individual write failures isolated and report skipped files separately.
+  **Complete.**
+
+### Phase 2.4 — Workflow refinement
+
+- Perform focused macOS and Windows end-to-end QA with representative large
+  batches and destination filesystems.
+- Refine recovery for output-directory removal and disk-full conditions.
+- Add an open-output-folder affordance and decide whether completed status should
+  reset immediately on settings mutation.
+- Review focus movement and screen-reader announcements through completion,
+  cancellation, retry, and repeated-batch flows.
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.
 
-## Phase 3 — Batch jobs
+## Phase 3 — Batch jobs — completed early in Phase 2.3
 
-- Introduce bounded native batch execution.
-- Add per-file and overall progress.
-- Add cooperative cancellation and temporary-file cleanup.
-- Isolate individual file failures.
-- Keep the UI responsive for large queues.
+- Introduce bounded native batch execution. **Complete.**
+- Add per-file and overall progress. **Complete.**
+- Add cooperative cancellation and temporary-file cleanup. **Complete.**
+- Isolate individual file failures. **Complete.**
+- Keep the UI responsive for large queues. **Complete by using asynchronous
+  native calls with a three-item worker pool.**
 
 Exit condition: a batch can complete or cancel cleanly with an accurate state for
 every file.

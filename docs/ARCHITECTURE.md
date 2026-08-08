@@ -224,6 +224,41 @@ a sibling, and skip leaves the source untouched. Failures before finalization do
 not modify either source or an existing destination; temporary output is removed
 on normal error paths where possible.
 
+## Batch orchestration
+
+Phase 2.3 keeps orchestration state in React and reuses the existing
+`write_transformed_image` command for every ready queue item. A small worker pool
+starts at most three native writes concurrently. Rust remains responsible for
+each transformation and safe filesystem finalization; encoded bytes never enter
+React. Import-error rows are excluded before a batch starts, and result updates
+are keyed by source path so the visible queue remains in import order even when
+native calls finish out of order.
+
+Per-file processing state is separate from import validity: `ready`,
+`processing`, `written`, `skipped`, `failed`, or `cancelled`. One failed native
+call is recorded on its own item and does not stop another worker. Disk-full and
+other write failures use the same isolation; PixChisel currently does not
+pre-estimate free space.
+
+Cancellation is cooperative at file boundaries. The frontend cancellation token
+prevents workers from claiming another queued item. Native calls already active
+are not interrupted and complete their existing safe write or error normally;
+every path that was never started becomes cancelled. This preserves temporary
+file and finalization guarantees without forcefully terminating Rust work.
+
+Progress is item-based because the native pipeline does not expose trustworthy
+byte-level stages. Overall progress counts terminal items against the batch
+total. Result aggregation counts written, skipped, failed, and cancelled items
+and sums original/output bytes only for written results. A zero-byte original
+total produces a zero percentage, while larger output is described as larger
+rather than negative savings.
+
+Completed states remain visible while users adjust the queue or settings. A new
+full Chisel action explicitly resets processing state and processes every current
+ready item. Retry Failed & Cancelled resets and processes only those items,
+leaving written and skipped results untouched. Queue mutation and all processing
+settings are locked only while a batch is active.
+
 ## Thumbnail pipeline
 
 Ready imports request thumbnails through `generate_thumbnails(paths)`. The command

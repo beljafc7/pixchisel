@@ -1,12 +1,15 @@
 import { formatFileSize } from "../format";
 import type { ImageQueueItem } from "../types";
+import type { FileProcessingState } from "../../image-processing/batch";
 
 interface ImageQueueListProps {
   items: ImageQueueItem[];
   onRemove: (id: string) => void;
+  processingStates: Record<string, FileProcessingState>;
+  disabled: boolean;
 }
 
-export function ImageQueueList({ items, onRemove }: ImageQueueListProps) {
+export function ImageQueueList({ items, onRemove, processingStates, disabled }: ImageQueueListProps) {
   return (
     <ul className="queue-list" aria-label="Imported images">
       {items.map((item) => (
@@ -30,6 +33,9 @@ export function ImageQueueList({ items, onRemove }: ImageQueueListProps) {
               {item.filename}
             </span>
             {item.status === "error" && <span className="queue-item__error">{item.error.message}</span>}
+            {item.status === "ready" && (
+              <ProcessingDetail state={processingStates[item.path]} />
+            )}
           </div>
           {item.status === "ready" ? (
             <>
@@ -42,11 +48,33 @@ export function ImageQueueList({ items, onRemove }: ImageQueueListProps) {
           ) : (
             <span className="queue-item__status">Error</span>
           )}
-          <button className="icon-button" type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.filename}`}>
+          <button className="icon-button" type="button" onClick={() => onRemove(item.id)} disabled={disabled} aria-label={`Remove ${item.filename}`}>
             ×
           </button>
         </li>
       ))}
     </ul>
   );
+}
+
+function ProcessingDetail({ state }: { state: FileProcessingState | undefined }) {
+  if (!state || state.status === "ready") return null;
+  switch (state.status) {
+    case "processing":
+      return <span className="processing-detail processing-detail--processing">Processing…</span>;
+    case "written": {
+      const filename = state.result.outputPath.split(/[\\/]/).pop() ?? state.result.outputPath;
+      return (
+        <span className="processing-detail processing-detail--written" title={state.result.outputPath}>
+          Written · {filename} · {formatFileSize(state.result.originalSizeBytes)} → {formatFileSize(state.result.outputSizeBytes)}
+        </span>
+      );
+    }
+    case "skipped":
+      return <span className="processing-detail processing-detail--skipped">Skipped · destination exists</span>;
+    case "failed":
+      return <span className="processing-detail processing-detail--failed">Failed · {state.error.message}</span>;
+    case "cancelled":
+      return <span className="processing-detail processing-detail--cancelled">Cancelled</span>;
+  }
 }

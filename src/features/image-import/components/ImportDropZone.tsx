@@ -2,6 +2,7 @@ interface ImportDropZoneProps {
   compact?: boolean;
   isActive: boolean;
   isImporting: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -9,6 +10,7 @@ export function ImportDropZone({
   compact = false,
   isActive,
   isImporting,
+  disabled = false,
   onSelect,
 }: ImportDropZoneProps) {
   return (
@@ -22,7 +24,7 @@ export function ImportDropZone({
           <p>JPG, PNG, and WebP</p>
         </>
       )}
-      <button className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting}>
+      <button className={compact ? "secondary-button" : "primary-button"} type="button" onClick={onSelect} disabled={isImporting || disabled}>
         {compact ? "Add Images" : isImporting ? "Adding…" : "Select Images"}
       </button>
       {isActive && <span className="drop-zone__overlay">Drop to add images</span>}
