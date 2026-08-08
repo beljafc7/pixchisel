@@ -1,6 +1,15 @@
-import type { PropsWithChildren } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { useEffect, useState, type PropsWithChildren } from "react";
 
 export function AppShell({ children }: PropsWithChildren) {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -9,8 +18,11 @@ export function AppShell({ children }: PropsWithChildren) {
       </header>
       <main className="app-content">{children}</main>
       <footer className="app-footer">
-        <span className="status-dot" aria-hidden="true" />
-        Offline and ready
+        <span className="app-footer__status">
+          <span className="status-dot" aria-hidden="true" />
+          Offline and ready
+        </span>
+        {version && <span className="app-footer__version">v{version}</span>}
       </footer>
     </div>
   );

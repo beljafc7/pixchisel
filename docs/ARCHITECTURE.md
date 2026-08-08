@@ -31,6 +31,23 @@ The frontend must not read image bytes into JavaScript for processing. Thumbnail
 delivery should use a Tauri-safe local mechanism selected during Phase 1, with
 care taken not to retain large base64 payloads in React state.
 
+The application footer reads its version from Tauri's runtime app API. React does
+not contain a hardcoded version or import package metadata into the frontend
+bundle.
+
+## Version metadata
+
+`package.json` is the canonical authored version. The dependency-free
+`scripts/version.mjs` utility copies that value into `tauri.conf.json` and the
+Cargo package manifest only during an explicit version synchronization. Its
+check mode performs no writes and fails when any of the three values differ.
+
+Frontend and Tauri build scripts run the check mode before compiling. They never
+silently synchronize or increment versions, so an accidental mismatch is visible
+rather than modifying release metadata during normal development. Explicit npm
+release scripts use `npm version --no-git-tag-version`; npm updates its package
+metadata, then the version lifecycle synchronizes the native manifests.
+
 ### Initial source layout
 
 ```text

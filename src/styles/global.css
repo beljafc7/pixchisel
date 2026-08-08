@@ -75,8 +75,20 @@ button:focus-visible {
 }
 
 .app-footer {
-  gap: 8px;
+  justify-content: space-between;
   border-top: 1px solid #ded8cd;
+}
+
+.app-footer__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-footer__version {
+  color: #8a847b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .status-dot {

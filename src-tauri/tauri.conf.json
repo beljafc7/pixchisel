@@ -24,7 +24,9 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPCACHE/thumbnails/**/*"]
+        "scope": [
+          "$APPCACHE/thumbnails/**/*"
+        ]
       }
     }
   },

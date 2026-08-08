@@ -48,6 +48,20 @@ Paths and user input must be validated in Rust before filesystem work begins.
 - Do not log image contents, full paths, or other private user data unnecessarily.
 - Keep documentation aligned with implemented behavior.
 
+## Versioning
+
+- `package.json` is the canonical PixChisel version source.
+- Versions follow semantic versioning: `MAJOR.MINOR.PATCH`.
+- During pre-1.0 development, versions remain in `0.x.x`. Minor versions may
+  identify meaningful development milestones; patch versions identify fixes and
+  refinements.
+- Version changes are intentional release preparation actions. Features and
+  ordinary development builds must never bump the version automatically.
+- Generated version fields in the Tauri configuration and Cargo manifest must be
+  synchronized from `package.json` and checked before builds.
+- Versioning scripts do not create Git tags or releases. Source-control and
+  publishing actions remain explicit, separate release steps.
+
 ## Scope control
 
 V1 includes JPEG, PNG, and WebP output. AVIF, HEIC/HEIF, TIFF, JPEG XL, crop,

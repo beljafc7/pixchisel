@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run version:check",
     "build": "tsc && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "pretauri": "npm run version:check",
+    "tauri": "tauri",
+    "version:sync": "node scripts/version.mjs sync",
+    "version:check": "node scripts/version.mjs check",
+    "version": "npm run version:sync && npm run version:check",
+    "release:patch": "npm version patch --no-git-tag-version",
+    "release:minor": "npm version minor --no-git-tag-version",
+    "release:major": "npm version major --no-git-tag-version"
   },
   "dependencies": {
     "react": "^19.1.0",

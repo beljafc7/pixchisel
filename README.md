@@ -11,10 +11,9 @@ has no account system, backend, cloud storage, or telemetry by default.
 
 ## Status
 
-The repository currently contains the project foundation and the first real image
-import queue. Users can select or drop multiple JPEG, PNG, and WebP files, inspect
-them locally in Rust, see small orientation-aware local thumbnails, and remove or
-clear queue entries. Image transformation is intentionally not implemented yet.
+The repository contains the local import queue, orientation-aware thumbnails,
+validated transformation settings, and an in-memory native transformation
+pipeline. Final output writing and batch processing are not implemented yet.
 
 ## Technology
 
@@ -48,9 +47,34 @@ npm run dev
 ## Validation
 
 ```sh
+npm test
 npm run build
-cargo check --manifest-path src-tauri/Cargo.toml
+npm run version:check
+cargo check --manifest-path src-tauri/Cargo.toml --locked
 ```
+
+## Versioning
+
+PixChisel uses semantic versions in `MAJOR.MINOR.PATCH` form. `package.json` is
+the canonical version source; Tauri and Cargo version fields are synchronized
+from it.
+
+Prepare an intentional pre-1.0 release with one of:
+
+```sh
+npm run release:patch
+npm run release:minor
+```
+
+The major command also exists for the eventual 1.0 release:
+
+```sh
+npm run release:major
+```
+
+These commands update version metadata but deliberately create no Git tag or
+release. Use `npm run version:check` to verify alignment, or
+`npm run version:sync` after intentionally editing the canonical version.
 
 ## Project documentation
 
