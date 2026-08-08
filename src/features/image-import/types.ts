@@ -1,4 +1,4 @@
-import type { ImageInspection, InspectImageError } from "../../types/image";
+import type { ImageInspection, InspectImageError, ThumbnailError } from "../../types/image";
 
 interface QueueItemBase {
   id: string;
@@ -9,6 +9,10 @@ interface QueueItemBase {
 
 export interface ReadyQueueItem extends QueueItemBase, ImageInspection {
   status: "ready";
+  thumbnail:
+    | { status: "pending" }
+    | { status: "ready"; url: string }
+    | { status: "error"; error: ThumbnailError };
 }
 
 export interface ErrorQueueItem extends QueueItemBase {

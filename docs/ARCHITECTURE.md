@@ -104,6 +104,35 @@ Desktop file drops are received through Tauri's webview drag/drop events, which
 provide native filesystem paths. Browser drag/drop and HTML file inputs are not
 used.
 
+## Thumbnail pipeline
+
+Ready imports request thumbnails through `generate_thumbnails(paths)`. The command
+uses at most four workers and returns one ordered `ready` or `error` result per
+source path. Metadata rows are committed before thumbnail generation begins, so
+preview decoding does not block the queue from appearing. A thumbnail failure
+changes only its preview state and never changes a valid import into an error.
+
+Rust decodes the source, reads decoder orientation metadata, applies that
+orientation, and then fits the complete image inside a 128 × 128 pixel box. It
+does not crop or upscale. The existing `image` crate supports orientation for
+JPEG and WebP, so no separate EXIF dependency is needed. PNG thumbnails are used
+for every source because they render consistently and preserve transparent pixels.
+
+Each application run creates a unique directory below
+`$APPCACHE/thumbnails`. Source paths map to cached thumbnail entries for the
+session, preventing regeneration while an item remains active. Removing an item
+releases its cached file; Clear All releases all known files. The cache directory
+is also removed when managed native state is dropped during a normal exit.
+Thumbnails abandoned by an abnormal process termination may remain, but startup
+does not read or depend on any previous session directory. A simple stale-session
+prune can be added later if observed cache growth warrants it.
+
+React receives only small cache paths and renders them with Tauri's asset
+protocol. The protocol is enabled with the narrow static scope
+`$APPCACHE/thumbnails/**/*`; source-image directories and the rest of the
+filesystem are not exposed. React converts returned thumbnail paths with
+`convertFileSrc` and does not retain decoded pixels or base64 image data.
+
 ## File safety
 
 - Canonicalize or otherwise validate relevant paths in Rust.
@@ -140,7 +169,7 @@ Restricting features avoids the wider default format set, Rayon, AVIF tooling,
 and unnecessary binary/dependency cost. The crate can expose some orientation,
 EXIF, XMP, and ICC data depending on the decoder, but preservation and removal
 behavior must be evaluated explicitly before metadata controls are built. No
-secondary metadata library is added in Phase 1.1.
+secondary metadata library is required for thumbnail orientation.
 
 The official Tauri dialog plugin supplies the native file picker. Only its open
 permission is granted; save and message dialog permissions remain disabled.

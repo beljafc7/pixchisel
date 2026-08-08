@@ -52,6 +52,10 @@ such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
   from different directories.
 - Preserve valid imports when another selected file is unsupported or corrupt,
   and show that failure on the affected queue row.
+- Show a small, aspect-preserving thumbnail for each valid import after its
+  metadata row appears. Thumbnail failure must not invalidate the imported image.
+- Apply available orientation metadata to thumbnails, preserve transparency, and
+  never crop or upscale thumbnail content.
 
 V1 accepts JPEG/JPG, PNG, and WebP input. The decoded file signature, rather than
 the filename extension alone, determines whether an input is supported. Output

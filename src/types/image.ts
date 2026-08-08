@@ -36,3 +36,31 @@ export type ImageInspectionResult =
       extension: string;
       error: InspectImageError;
     };
+
+export type ThumbnailErrorCode =
+  | "fileNotFound"
+  | "permissionDenied"
+  | "decodeFailed"
+  | "cacheUnavailable"
+  | "writeFailed"
+  | "invalidPath"
+  | "internal";
+
+export interface ThumbnailError {
+  code: ThumbnailErrorCode;
+  message: string;
+}
+
+export type ThumbnailResult =
+  | {
+      status: "ready";
+      path: string;
+      thumbnailPath: string;
+      width: number;
+      height: number;
+    }
+  | {
+      status: "error";
+      path: string;
+      error: ThumbnailError;
+    };

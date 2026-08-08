@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ImageInspectionResult } from "../../types/image";
-import { addInspectionResults, removeQueueItem, validQueueSize } from "./queue";
+import {
+  addInspectionResults,
+  applyThumbnailResults,
+  removeQueueItem,
+  validQueueSize,
+} from "./queue";
 
 const readyResult = (path: string, size: number): ImageInspectionResult => ({
   status: "ready",
@@ -51,5 +56,31 @@ describe("image import queue", () => {
     const queue = addInspectionResults([], [readyResult("/images/a.png", 42), errorResult]);
 
     expect(validQueueSize(queue)).toBe(42);
+  });
+
+  it("attaches thumbnails without changing missing or error queue items", () => {
+    const queue = addInspectionResults([], [
+      readyResult("/images/a.png", 10),
+      readyResult("/images/b.png", 20),
+    ]);
+    const updated = applyThumbnailResults(
+      queue,
+      [
+        {
+          status: "ready",
+          path: "/images/a.png",
+          thumbnailPath: "/cache/a.png",
+          width: 128,
+          height: 64,
+        },
+      ],
+      (path) => `asset:${path}`,
+    );
+
+    expect(updated[0].status === "ready" && updated[0].thumbnail).toEqual({
+      status: "ready",
+      url: "asset:/cache/a.png",
+    });
+    expect(updated[1].status === "ready" && updated[1].thumbnail.status).toBe("pending");
   });
 });

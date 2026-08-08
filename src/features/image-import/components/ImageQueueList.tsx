@@ -11,6 +11,20 @@ export function ImageQueueList({ items, onRemove }: ImageQueueListProps) {
     <ul className="queue-list" aria-label="Imported images">
       {items.map((item) => (
         <li className={`queue-item queue-item--${item.status}`} key={item.id}>
+          <div className={`queue-item__thumbnail queue-item__thumbnail--${item.status}`}>
+            {item.status === "ready" && item.thumbnail.status === "ready" && (
+              <img src={item.thumbnail.url} alt="" aria-hidden="true" />
+            )}
+            {item.status === "ready" && item.thumbnail.status === "pending" && (
+              <span className="thumbnail-pending" aria-label="Generating preview" />
+            )}
+            {item.status === "error" ||
+            (item.status === "ready" && item.thumbnail.status === "error") ? (
+              <span className="thumbnail-placeholder" aria-hidden="true">
+                —
+              </span>
+            ) : null}
+          </div>
           <div className="queue-item__file">
             <span className="queue-item__name" title={item.filename}>
               {item.filename}

@@ -22,7 +22,8 @@ future features should not be mixed silently.
 - Expand selection to the multi-file picker and add drag-and-drop ingestion.
   **Complete in Phase 1.2.**
 - Inspect supported files in bounded native batches. **Complete in Phase 1.2.**
-- Display thumbnail, filename, dimensions, format, and file size.
+- Display thumbnail, filename, dimensions, format, and file size. **Complete in
+  Phase 1.3.**
 - Handle duplicates, unsupported formats, and corrupt images. **Complete in Phase
   1.2.**
 - Establish typed frontend/native request and error contracts. **Complete for
