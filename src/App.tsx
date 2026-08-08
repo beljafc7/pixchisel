@@ -1,10 +1,10 @@
 import { AppShell } from "./components/layout/AppShell";
-import { ImageInspector } from "./features/image-inspection/ImageInspector";
+import { ImageImportQueue } from "./features/image-import/ImageImportQueue";
 
 function App() {
   return (
     <AppShell>
-      <ImageInspector />
+      <ImageImportQueue />
     </AppShell>
   );
 }

@@ -5,7 +5,7 @@ mod imaging;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![commands::inspect_image])
+        .invoke_handler(tauri::generate_handler![commands::inspect_images])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

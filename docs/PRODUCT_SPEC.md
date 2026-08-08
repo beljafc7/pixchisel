@@ -48,6 +48,10 @@ such as “Chisel 24 Images” and “Chiseled — 82% smaller.”
 - Recognize supported inputs and report unsupported or unreadable files clearly.
 - Show thumbnail, filename, pixel dimensions, format, and file size.
 - Allow files to be removed before processing.
+- Prevent repeated native paths in the queue while allowing identical filenames
+  from different directories.
+- Preserve valid imports when another selected file is unsupported or corrupt,
+  and show that failure on the affected queue row.
 
 V1 accepts JPEG/JPG, PNG, and WebP input. The decoded file signature, rather than
 the filename extension alone, determines whether an input is supported. Output

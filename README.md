@@ -11,10 +11,10 @@ has no account system, backend, cloud storage, or telemetry by default.
 
 ## Status
 
-The repository currently contains the initial project foundation and a temporary
-single-file inspection screen. Native Rust inspection reads JPEG, PNG, and WebP
-dimensions and file details; image transformation and the final import workflow
-are intentionally not implemented yet.
+The repository currently contains the project foundation and the first real image
+import queue. Users can select or drop multiple JPEG, PNG, and WebP files, inspect
+them locally in Rust, and remove or clear queue entries. Image transformation and
+thumbnails are intentionally not implemented yet.
 
 ## Technology
 

@@ -1,4 +1,10 @@
-use std::{fs, io, io::BufReader, path::Path};
+use std::{
+    fs, io,
+    io::BufReader,
+    path::{Path, PathBuf},
+    sync::{atomic::AtomicUsize, atomic::Ordering, Mutex},
+    thread,
+};
 
 use image::{error::ImageError, ImageFormat, ImageReader};
 use serde::Serialize;
@@ -34,6 +40,20 @@ pub struct ImageInspection {
     pub width: u32,
     pub height: u32,
     pub file_size_bytes: u64,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum ImageInspectionResult {
+    Ready {
+        image: ImageInspection,
+    },
+    Error {
+        path: String,
+        filename: String,
+        extension: String,
+        error: InspectImageError,
+    },
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -123,6 +143,62 @@ pub fn inspect_image_file(path: &Path) -> Result<ImageInspection, InspectImageEr
     })
 }
 
+pub fn inspect_image_files(paths: Vec<PathBuf>) -> Vec<ImageInspectionResult> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+
+    let worker_count = thread::available_parallelism()
+        .map(|parallelism| parallelism.get())
+        .unwrap_or(1)
+        .min(4)
+        .min(paths.len());
+    let next_index = AtomicUsize::new(0);
+    let results = Mutex::new(
+        std::iter::repeat_with(|| None)
+            .take(paths.len())
+            .collect::<Vec<Option<ImageInspectionResult>>>(),
+    );
+
+    thread::scope(|scope| {
+        for _ in 0..worker_count {
+            scope.spawn(|| loop {
+                let index = next_index.fetch_add(1, Ordering::Relaxed);
+                let Some(path) = paths.get(index) else {
+                    break;
+                };
+                let result = inspection_result(path);
+                results.lock().expect("inspection results lock")[index] = Some(result);
+            });
+        }
+    });
+
+    results
+        .into_inner()
+        .expect("inspection results lock")
+        .into_iter()
+        .map(|result| result.expect("every inspection produces a result"))
+        .collect()
+}
+
+fn inspection_result(path: &Path) -> ImageInspectionResult {
+    match inspect_image_file(path) {
+        Ok(image) => ImageInspectionResult::Ready { image },
+        Err(error) => ImageInspectionResult::Error {
+            path: path.to_string_lossy().into_owned(),
+            filename: path
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "Unknown file".to_owned()),
+            extension: path
+                .extension()
+                .map(|value| value.to_string_lossy().to_lowercase())
+                .unwrap_or_default(),
+            error,
+        },
+    }
+}
+
 fn unsupported_format() -> InspectImageError {
     InspectImageError::new(
         InspectImageErrorCode::UnsupportedFormat,
@@ -168,7 +244,10 @@ mod tests {
 
     use image::{DynamicImage, ImageFormat};
 
-    use super::{inspect_image_file, InspectImageErrorCode, SupportedImageFormat};
+    use super::{
+        inspect_image_file, inspect_image_files, ImageInspectionResult, InspectImageErrorCode,
+        SupportedImageFormat,
+    };
 
     static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -262,5 +341,53 @@ mod tests {
         let error = inspect_image_file(&path).expect_err("report missing fixture");
 
         assert_eq!(error.code, InspectImageErrorCode::FileNotFound);
+    }
+
+    #[test]
+    fn multi_file_inspection_preserves_input_order() {
+        let directory = TestDirectory::new();
+        let paths = ["first.png", "second.jpg", "third.webp"].map(|filename| {
+            let path = directory.path().join(filename);
+            DynamicImage::new_rgb8(3, 2)
+                .save(&path)
+                .expect("write ordered image fixture");
+            path
+        });
+
+        let results = inspect_image_files(paths.to_vec());
+        let filenames = results
+            .into_iter()
+            .map(|result| match result {
+                ImageInspectionResult::Ready { image } => image.filename,
+                ImageInspectionResult::Error { .. } => panic!("expected ready result"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(filenames, ["first.png", "second.jpg", "third.webp"]);
+    }
+
+    #[test]
+    fn multi_file_inspection_keeps_successes_and_errors() {
+        let directory = TestDirectory::new();
+        let valid_path = directory.path().join("valid.png");
+        let invalid_path = directory.path().join("invalid.png");
+        DynamicImage::new_rgb8(1, 1)
+            .save(&valid_path)
+            .expect("write valid fixture");
+        fs::write(&invalid_path, b"not an image").expect("write invalid fixture");
+
+        let results = inspect_image_files(vec![valid_path, invalid_path]);
+
+        assert!(matches!(results[0], ImageInspectionResult::Ready { .. }));
+        assert!(matches!(
+            results[1],
+            ImageInspectionResult::Error {
+                error: super::InspectImageError {
+                    code: InspectImageErrorCode::UnsupportedFormat,
+                    ..
+                },
+                ..
+            }
+        ));
     }
 }

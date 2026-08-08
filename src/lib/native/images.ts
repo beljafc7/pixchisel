@@ -1,14 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ImageInspection, InspectImageError } from "../../types/image";
+import type { ImageInspectionResult, InspectImageError } from "../../types/image";
 
 const fallbackError: InspectImageError = {
   code: "internal",
   message: "The image could not be inspected.",
 };
 
-export async function inspectImage(path: string): Promise<ImageInspection> {
+export async function inspectImages(paths: string[]): Promise<ImageInspectionResult[]> {
   try {
-    return await invoke<ImageInspection>("inspect_image", { path });
+    return await invoke<ImageInspectionResult[]>("inspect_images", { paths });
   } catch (error) {
     throw normalizeInspectImageError(error);
   }

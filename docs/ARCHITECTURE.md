@@ -86,11 +86,23 @@ completion should arrive as events that contain the job identifier and stable
 file identifier. Cancellation should be cooperative: stop scheduling new work,
 allow safe interruption points, clean temporary output, and report final states.
 
-The first command is `inspect_image(path)`. It performs blocking file inspection
-on Tauri's blocking task pool and returns filename, extension, detected format,
-dimensions, and file size. Failures cross the boundary as a structured error with
-a stable code and user-safe message. Batch command and event payloads should be
-defined alongside the first processing spike rather than frozen prematurely.
+The import command is `inspect_images(paths)`. It enters Tauri's blocking task
+pool, uses at most four native inspection workers, and preserves input order in
+its result array. Each path returns either image details or its own structured
+error, so an invalid file cannot fail the rest of an import. The frontend invokes
+one command per selection or drop instead of creating unbounded native calls.
+Processing-job command and event payloads should be defined alongside the first
+transformation spike rather than frozen prematurely.
+
+React owns the transient queue. A queue item uses its native path as a stable ID,
+and new inspection results are merged by exact path, allowing identical filenames
+from different directories while preventing a repeated path. Ready items contain
+format, dimensions, and size; error items retain the path and filename plus a
+stable native error because valid image details are unavailable.
+
+Desktop file drops are received through Tauri's webview drag/drop events, which
+provide native filesystem paths. Browser drag/drop and HTML file inputs are not
+used.
 
 ## File safety
 

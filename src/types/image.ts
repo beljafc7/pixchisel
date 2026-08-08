@@ -23,3 +23,16 @@ export interface InspectImageError {
   code: InspectImageErrorCode;
   message: string;
 }
+
+export type ImageInspectionResult =
+  | {
+      status: "ready";
+      image: ImageInspection;
+    }
+  | {
+      status: "error";
+      path: string;
+      filename: string;
+      extension: string;
+      error: InspectImageError;
+    };

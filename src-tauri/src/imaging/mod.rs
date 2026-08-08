@@ -1,3 +1,3 @@
 mod inspect;
 
-pub use inspect::{inspect_image_file, ImageInspection, InspectImageError};
+pub use inspect::{inspect_image_files, ImageInspectionResult, InspectImageError};

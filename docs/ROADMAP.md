@@ -20,10 +20,13 @@ future features should not be mixed silently.
 - Add single-file native selection and typed inspection. **Complete in Phase
   1.1.**
 - Expand selection to the multi-file picker and add drag-and-drop ingestion.
-- Inspect supported files in Rust.
+  **Complete in Phase 1.2.**
+- Inspect supported files in bounded native batches. **Complete in Phase 1.2.**
 - Display thumbnail, filename, dimensions, format, and file size.
-- Handle duplicates, unsupported formats, and corrupt images.
-- Establish typed frontend/native request and error contracts.
+- Handle duplicates, unsupported formats, and corrupt images. **Complete in Phase
+  1.2.**
+- Establish typed frontend/native request and error contracts. **Complete for
+  import inspection.**
 
 Exit condition: users can build and edit a multi-image queue; no processing is
 performed.
