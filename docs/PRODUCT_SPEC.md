@@ -82,8 +82,8 @@ preservation. Settings are intentionally not persisted between launches.
 - Present the control in understandable terms while keeping encoder-specific
   details out of the primary interface.
 - Quality accepts whole numbers from 1 through 100 and is active for JPEG and
-  WebP. It is disabled for PNG and keep-original output. Phase 2 must confirm the
-  encoder strategy for lossy WebP before this intent is processed.
+  WebP. It is disabled for PNG and keep-original output. JPEG and WebP map this
+  value to their lossy encoders; exact sizes are intentionally not promised.
 
 ### Resize
 
@@ -96,6 +96,23 @@ preservation. Settings are intentionally not persisted between launches.
 - Dimension values accept whole numbers from 1 through 32,768 pixels. Percentage
   accepts whole numbers from 1 through 1,000. These conservative UI limits keep
   future native requests bounded; Rust must validate them again before processing.
+- Aspect-derived dimensions use half-up rounding and never become smaller than
+  one pixel. WebP output has a codec-specific maximum of 16,383 pixels per axis.
+
+### Transformation behavior
+
+- Orientation is applied before resize calculations and pixel resampling.
+- Keep original means re-encoding to the detected source format whenever a
+  transformation is required. A future unchanged-input fast path may copy bytes.
+- JPEG output composites transparent pixels onto white.
+- PNG output preserves pixel alpha.
+- Source files remain untouched during transformation.
+
+The current re-encode pipeline does not preserve source EXIF, ICC, XMP, or PNG
+textual metadata. Selecting metadata removal intentionally guarantees that no
+transfer is attempted. Leaving removal disabled currently reports that metadata
+was discarded because preservation is unsupported; it must not be presented as
+successful preservation in results. A preservation policy remains a V1 decision.
 
 ### Batch processing
 

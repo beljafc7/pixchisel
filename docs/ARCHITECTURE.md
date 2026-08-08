@@ -123,6 +123,49 @@ Settings live only for the mounted loaded-queue workspace. There is no browser
 storage, database, or native preference persistence. The Chisel action remains
 disabled until Phase 2 supplies a real native processing command.
 
+## Transformation pipeline
+
+Phase 2.1 mirrors the TypeScript settings contract in Rust under
+`imaging/transform`. Serde uses camel-case naming and rejects unknown object
+fields and enum values. Rust independently validates quality and the active
+resize fields before opening or decoding a source. Encoded bytes remain in the
+native `EncodedTransformation`; no Tauri command returns them and no destination
+file is created.
+
+The single-image pipeline detects JPEG, PNG, or WebP from content, obtains the
+decoder orientation, decodes, applies orientation, calculates the resize target,
+resamples only when needed, and encodes to the selected format. For
+keep-original, the detected input format becomes the encoder format. This phase
+always re-encodes; Phase 2.2 may safely copy an unchanged keep-original source as
+an optimization.
+
+Resize calculation is pure. Width and height modes derive the other dimension;
+fit chooses the limiting axis and never crops; percentage scales both axes.
+Derived dimensions use integer half-up rounding and clamp positive results to at
+least one pixel. When upscaling is disabled, any enlargement resolves to the
+oriented source dimensions. Targets cannot exceed 32,768 pixels on either axis.
+WebP has a stricter codec limit of 16,383 pixels per axis and returns a typed
+format-specific error above it. Pixel resampling uses Lanczos3.
+
+JPEG encoding uses the requested quality from 1 through 100. RGBA pixels are
+explicitly composited over white before conversion to RGB. PNG encoding writes
+RGBA and therefore retains pixel alpha. Lossy WebP uses the quality-aware
+`webp` wrapper around statically built libwebp.
+
+### Metadata reality
+
+The `image` decoders can expose some EXIF, ICC, and XMP payloads, and selected
+encoders can write subsets of them, but transferring them correctly across
+orientation changes and format conversion is not uniform. PNG textual chunks
+are also not retained by the current decode-to-pixels path. Phase 2.1 therefore
+copies no source EXIF, ICC, XMP, or PNG textual metadata.
+
+With `removeMetadata: true`, the result reports intentional removal. With it
+false, the result reports `discardedUnsupported` rather than claiming
+preservation. Encoder-required structural headers are not treated as source
+metadata. A narrowly scoped preservation policy must be designed separately if
+preservation is required before V1 release.
+
 ## Thumbnail pipeline
 
 Ready imports request thumbnails through `generate_thumbnails(paths)`. The command
@@ -177,12 +220,15 @@ detection and header-level dimension inspection without decoding the full pixel
 buffer. It is mature, actively maintained, dual-licensed under MIT or Apache-2.0,
 and introduces no native system library requirement on macOS or Windows.
 
-The selected crate can read all V1 formats and encode JPEG, PNG, and lossless
-WebP, keeping inspection and most future transformations in one ecosystem. Its
-pure-Rust WebP encoder does not support lossy quality settings; Phase 2 must
-evaluate whether lossless-only WebP satisfies the product or whether a narrowly
-scoped encoder dependency is justified. This limitation is not a reason to add a
-native system dependency during inspection work.
+The selected crate reads all V1 formats and encodes JPEG, PNG, and lossless WebP,
+keeping inspection and most transformations in one ecosystem. Its pure-Rust
+WebP encoder does not support lossy quality settings. Phase 2.1 therefore adds
+the narrowly scoped `webp` safe wrapper for lossy WebP output. It is MIT or
+Apache-2.0 licensed and uses `libwebp-sys` to statically compile the upstream
+BSD-licensed libwebp sources. Users do not install a binary or shared library.
+The build requires the normal C toolchain available to Rust desktop builds on
+macOS and Windows, and increases compile time and binary size compared with the
+pure-Rust lossless encoder.
 
 Restricting features avoids the wider default format set, Rayon, AVIF tooling,
 and unnecessary binary/dependency cost. The crate can expose some orientation,

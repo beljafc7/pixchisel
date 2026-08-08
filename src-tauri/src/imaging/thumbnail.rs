@@ -313,15 +313,24 @@ fn remove_cache_file(path: &Path) -> Result<(), ThumbnailError> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::atomic::{AtomicU64, Ordering},
+    };
 
     use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
 
     use super::{generate_thumbnail_files, make_thumbnail, ThumbnailCache, ThumbnailResult};
 
+    static NEXT_TEST_CACHE: AtomicU64 = AtomicU64::new(0);
+
     fn test_cache() -> (PathBuf, ThumbnailCache) {
-        let root =
-            std::env::temp_dir().join(format!("pixchisel-thumbnail-tests-{}", std::process::id()));
+        let number = NEXT_TEST_CACHE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "pixchisel-thumbnail-tests-{}-{number}",
+            std::process::id()
+        ));
         let cache = ThumbnailCache::new_in(root.clone()).expect("create thumbnail cache");
         (root, cache)
     }

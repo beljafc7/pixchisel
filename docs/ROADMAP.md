@@ -36,14 +36,27 @@ performed.
 
 ## Phase 2 — Single-image processing
 
-- Mirror and validate `BatchSettings` in Rust.
+- Mirror and validate `BatchSettings` in Rust. **Complete in Phase 2.1.**
 - Implement JPEG, PNG, WebP, and keep-original encoding using the selected
-  output setting; decide the lossy WebP encoder strategy first.
-- Implement quality and aspect-preserving resize behavior.
+  output setting; decide the lossy WebP encoder strategy first. **Complete
+  in-memory in Phase 2.1 using statically built libwebp for lossy WebP.**
+- Implement quality and aspect-preserving resize behavior. **Complete in-memory
+  in Phase 2.1.**
 - Apply the documented white JPEG transparency background and no-upscale policy.
+  **Complete in the native transformation pipeline.**
 - Add output directory selection and the three conflict policies.
 - Implement safe native output writes.
-- Add metadata removal where supported.
+- Add metadata removal where supported. **Phase 2.1 strips transferable metadata;
+  preservation while removal is disabled remains an explicit product decision.**
+
+### Phase 2.2 — Filesystem boundary
+
+- Select an output directory through a native dialog.
+- Define the native single-image write request around the established settings.
+- Implement overwrite, create-copy, and skip behavior without silent data loss.
+- Write encoded bytes to a temporary sibling and finalize atomically where the
+  platform and destination filesystem permit.
+- Surface the metadata-preservation limitation before enabling production output.
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.

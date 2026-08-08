@@ -1,6 +1,12 @@
 mod commands;
 mod imaging;
 
+pub use imaging::transform::{
+    transform_image, BatchSettings, EncodedTransformation, MetadataDisposition, OutputFormat,
+    ResizeMode, ResizeSettings, TransformError, TransformationMetadata, ValidationError,
+    ValidationErrorCode,
+};
+
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
