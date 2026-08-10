@@ -67,6 +67,8 @@ export function ProcessingDetail({ state }: { state: FileProcessingState | undef
           <progress value={state.percent} max={100} aria-label={`${stageLabel(state.stage)} ${state.percent}%`} />
         </span>
       );
+    case "cancelling":
+      return <span className="processing-detail processing-detail--cancelled">Cancelling…</span>;
     case "written": {
       const filename = state.result.outputPath.split(/[\\/]/).pop() ?? state.result.outputPath;
       return (
@@ -77,6 +79,8 @@ export function ProcessingDetail({ state }: { state: FileProcessingState | undef
     }
     case "skipped":
       return <span className="processing-detail processing-detail--skipped">Skipped · destination exists</span>;
+    case "notSmaller":
+      return <span className="processing-detail processing-detail--skipped">Already optimized · no smaller version produced</span>;
     case "failed":
       return <span className="processing-detail processing-detail--failed">Failed · {state.error.message}</span>;
     case "cancelled":

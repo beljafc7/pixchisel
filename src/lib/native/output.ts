@@ -10,17 +10,35 @@ import { parseWriteImageResult } from "../../features/image-processing/output";
 export async function writeTransformedImage(
   request: WriteImageRequest,
   onProgress?: (progress: ProcessingProgress) => void,
+  cancellationId = createCancellationId(),
 ): Promise<WriteImageResult> {
   try {
     const channel = new Channel<ProcessingProgress>();
     channel.onmessage = (progress) => {
       if (isProcessingProgress(progress)) onProgress?.(progress);
     };
-    const result = await invoke<unknown>("write_transformed_image", { request, onProgress: channel });
+    const result = await invoke<unknown>("write_transformed_image", {
+      request,
+      onProgress: channel,
+      cancellationId,
+    });
     return parseWriteImageResult(result);
   } catch (error) {
     throw normalizeWriteImageError(error);
   }
+}
+
+export async function cancelProcessing(cancellationId: string): Promise<void> {
+  await invoke("cancel_processing", { cancellationId });
+}
+
+export async function clearProcessingCancellation(cancellationId: string): Promise<void> {
+  await invoke("clear_processing_cancellation", { cancellationId });
+}
+
+export function createCancellationId(): string {
+  return globalThis.crypto?.randomUUID?.() ??
+    `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 const stages = new Map([

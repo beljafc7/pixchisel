@@ -9,8 +9,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::imaging::transform::{
-    detect_input_format, transform_image_with_progress, BatchSettings, OutputFormat,
-    ProcessingStage, TransformError, TransformationMetadata,
+    detect_input_format, transform_image_with_progress_and_cancellation, BatchSettings,
+    OutputFormat, ProcessingStage, TransformError, TransformationMetadata,
 };
 
 const MAX_COPY_ATTEMPTS: u32 = 10_000;
@@ -29,9 +29,24 @@ pub enum ConflictPolicy {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WriteImageRequest {
     pub source_path: PathBuf,
-    pub output_directory: PathBuf,
     pub settings: BatchSettings,
-    pub conflict_policy: ConflictPolicy,
+    pub destination: WriteDestination,
+    pub operation: WriteOperation,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum WriteOperation {
+    Compress,
+    Convert,
+    Resize,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "mode", rename_all = "camelCase", deny_unknown_fields)]
+pub enum WriteDestination {
+    Directory { path: PathBuf },
+    ReplaceOriginal,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -59,11 +74,22 @@ pub enum WriteImageResult {
         #[serde(rename = "originalSizeBytes")]
         original_size_bytes: u64,
     },
+    NotSmaller {
+        #[serde(rename = "sourcePath")]
+        source_path: String,
+        #[serde(rename = "outputFormat")]
+        output_format: OutputFormat,
+        #[serde(rename = "originalSizeBytes")]
+        original_size_bytes: u64,
+        #[serde(rename = "candidateSizeBytes")]
+        candidate_size_bytes: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum WriteImageErrorCode {
+    Cancelled,
     OutputDirectoryMissing,
     OutputDirectoryNotWritable,
     DestinationConflict,
@@ -115,7 +141,15 @@ pub fn write_transformed_image(
 
 pub fn write_transformed_image_with_progress(
     request: WriteImageRequest,
+    on_progress: impl FnMut(ProcessingProgress),
+) -> Result<WriteImageResult, WriteImageError> {
+    write_transformed_image_with_progress_and_cancellation(request, on_progress, || false)
+}
+
+pub fn write_transformed_image_with_progress_and_cancellation(
+    request: WriteImageRequest,
     mut on_progress: impl FnMut(ProcessingProgress),
+    should_cancel: impl Fn() -> bool,
 ) -> Result<WriteImageResult, WriteImageError> {
     let source_path = display_path(&request.source_path);
     let mut report = |stage: ProcessingStage| {
@@ -126,42 +160,98 @@ pub fn write_transformed_image_with_progress(
         });
     };
     report(ProcessingStage::Preparing);
-    validate_output_directory(&request.output_directory)?;
+    ensure_not_cancelled(&should_cancel)?;
     let output_format = match request.settings.output_format {
         OutputFormat::Original => {
             detect_input_format(&request.source_path).map_err(map_transform_error)?
         }
         selected => selected,
     };
-    let base_destination = output_path(
-        &request.source_path,
-        &request.output_directory,
-        output_format,
-    )?;
     let original_size_bytes = fs::metadata(&request.source_path)
         .map_err(|_| transform_failed())?
         .len();
-
-    if base_destination.exists() && request.conflict_policy == ConflictPolicy::Skip {
-        return Ok(WriteImageResult::Skipped {
+    let (directory, destination, finalization, remove_source_after) = match &request.destination {
+        WriteDestination::Directory { path } => {
+            validate_output_directory(path)?;
+            let base_destination = output_path(&request.source_path, path, output_format)?;
+            (
+                path.clone(),
+                available_copy_path(&base_destination)?,
+                ConflictPolicy::CreateCopy,
+                false,
+            )
+        }
+        WriteDestination::ReplaceOriginal => {
+            let directory = request
+                .source_path
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .ok_or_else(|| {
+                    WriteImageError::new(
+                        WriteImageErrorCode::UnsafeSourceDestination,
+                        "The source image does not have a safe parent folder.",
+                    )
+                })?
+                .to_path_buf();
+            validate_output_directory(&directory)?;
+            let destination = if request.settings.output_format == OutputFormat::Original {
+                request.source_path.clone()
+            } else {
+                output_path(&request.source_path, &directory, output_format)?
+            };
+            let changes_path = destination != request.source_path;
+            if changes_path && destination.exists() {
+                return Err(WriteImageError::new(
+                    WriteImageErrorCode::DestinationConflict,
+                    "A different file already uses the converted filename. The original was not changed.",
+                ));
+            }
+            (
+                directory,
+                destination,
+                if changes_path {
+                    ConflictPolicy::CreateCopy
+                } else {
+                    ConflictPolicy::Overwrite
+                },
+                changes_path,
+            )
+        }
+    };
+    ensure_not_cancelled(&should_cancel)?;
+    let transformed = transform_image_with_progress_and_cancellation(
+        &request.source_path,
+        &request.settings,
+        &mut report,
+        &should_cancel,
+    )
+    .map_err(map_transform_error)?;
+    ensure_not_cancelled(&should_cancel)?;
+    if is_not_smaller(
+        request.operation,
+        transformed.bytes.len(),
+        original_size_bytes,
+    ) {
+        return Ok(WriteImageResult::NotSmaller {
             source_path: display_path(&request.source_path),
-            output_path: display_path(&base_destination),
             output_format,
             original_size_bytes,
+            candidate_size_bytes: transformed.bytes.len() as u64,
         });
     }
-
-    let destination = match request.conflict_policy {
-        ConflictPolicy::CreateCopy => available_copy_path(&base_destination)?,
-        ConflictPolicy::Overwrite | ConflictPolicy::Skip => base_destination,
-    };
-    let transformed =
-        transform_image_with_progress(&request.source_path, &request.settings, &mut report)
-            .map_err(map_transform_error)?;
     report(ProcessingStage::Saving);
-    let mut temporary = TemporaryOutput::create(&request.output_directory)?;
+    let mut temporary = TemporaryOutput::create(&directory)?;
     temporary.write_all(&transformed.bytes)?;
-    temporary.finalize(&destination, request.conflict_policy)?;
+    ensure_not_cancelled(&should_cancel)?;
+    temporary.finalize(&destination, finalization)?;
+    if remove_source_after {
+        fs::remove_file(&request.source_path).map_err(|_| {
+            WriteImageError::new(
+                WriteImageErrorCode::CleanupFailed,
+                "The converted image was saved, but the original could not be removed.",
+            )
+        })?;
+    }
 
     let output_size_bytes = fs::metadata(&destination)
         .map_err(|_| {
@@ -181,6 +271,21 @@ pub fn write_transformed_image_with_progress(
     };
     report(ProcessingStage::Completed);
     Ok(result)
+}
+
+fn ensure_not_cancelled(should_cancel: impl Fn() -> bool) -> Result<(), WriteImageError> {
+    if should_cancel() {
+        Err(WriteImageError::new(
+            WriteImageErrorCode::Cancelled,
+            "Processing was cancelled before the output was saved.",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn is_not_smaller(operation: WriteOperation, candidate_size: usize, original_size: u64) -> bool {
+    operation == WriteOperation::Compress && candidate_size as u64 >= original_size
 }
 
 pub fn output_path(
@@ -424,8 +529,15 @@ fn unique_backup_path(destination: &Path) -> Result<PathBuf, WriteImageError> {
     ))
 }
 
-fn map_transform_error(_error: TransformError) -> WriteImageError {
-    transform_failed()
+fn map_transform_error(error: TransformError) -> WriteImageError {
+    if error == TransformError::Cancelled {
+        WriteImageError::new(
+            WriteImageErrorCode::Cancelled,
+            "Processing was cancelled before the output was saved.",
+        )
+    } else {
+        transform_failed()
+    }
 }
 
 fn transform_failed() -> WriteImageError {
@@ -512,16 +624,23 @@ mod tests {
     ) -> WriteImageRequest {
         WriteImageRequest {
             source_path: source,
-            output_directory,
             settings: settings(format),
-            conflict_policy,
+            destination: match conflict_policy {
+                ConflictPolicy::CreateCopy | ConflictPolicy::Skip => WriteDestination::Directory {
+                    path: output_directory,
+                },
+                ConflictPolicy::Overwrite => WriteDestination::ReplaceOriginal,
+            },
+            operation: WriteOperation::Convert,
         }
     }
 
     fn written_path(result: &WriteImageResult) -> PathBuf {
         match result {
             WriteImageResult::Written { output_path, .. } => PathBuf::from(output_path),
-            WriteImageResult::Skipped { .. } => panic!("expected written output"),
+            WriteImageResult::Skipped { .. } | WriteImageResult::NotSmaller { .. } => {
+                panic!("expected written output")
+            }
         }
     }
 
@@ -547,10 +666,9 @@ mod tests {
     }
 
     #[test]
-    fn request_contract_and_conflict_policy_use_typescript_spelling() {
+    fn request_contract_uses_a_discriminated_destination() {
         let value = serde_json::json!({
             "sourcePath": "/images/photo.png",
-            "outputDirectory": "/images/output",
             "settings": {
                 "outputFormat": "png",
                 "quality": 82,
@@ -565,12 +683,21 @@ mod tests {
                 "allowUpscaling": false,
                 "removeMetadata": true
             },
-            "conflictPolicy": "createCopy"
+            "destination": { "mode": "directory", "path": "/images/output" },
+            "operation": "compress"
         });
         let parsed: WriteImageRequest = serde_json::from_value(value.clone()).unwrap();
-        assert_eq!(parsed.conflict_policy, ConflictPolicy::CreateCopy);
+        assert_eq!(
+            parsed.destination,
+            WriteDestination::Directory {
+                path: PathBuf::from("/images/output")
+            }
+        );
+        assert_eq!(parsed.operation, WriteOperation::Compress);
         assert_eq!(serde_json::to_value(parsed).unwrap(), value);
-        assert!(serde_json::from_value::<ConflictPolicy>(serde_json::json!("rename")).is_err());
+        let replace: WriteDestination =
+            serde_json::from_value(serde_json::json!({ "mode": "replaceOriginal" })).unwrap();
+        assert_eq!(replace, WriteDestination::ReplaceOriginal);
     }
 
     #[test]
@@ -608,6 +735,17 @@ mod tests {
         assert_eq!(value["status"], "skipped");
         assert_eq!(value["outputPath"], "/output/photo.jpg");
         assert!(value.get("outputSizeBytes").is_none());
+
+        let not_smaller = WriteImageResult::NotSmaller {
+            source_path: "/input/photo.png".into(),
+            output_format: OutputFormat::Png,
+            original_size_bytes: 100,
+            candidate_size_bytes: 100,
+        };
+        let value = serde_json::to_value(not_smaller).unwrap();
+        assert_eq!(value["status"], "notSmaller");
+        assert_eq!(value["candidateSizeBytes"], 100);
+        assert!(value.get("outputPath").is_none());
     }
 
     #[test]
@@ -628,6 +766,7 @@ mod tests {
     fn create_copy_uses_first_available_number_without_overwriting() {
         let directory = TestDirectory::new();
         let source = write_source(&directory.0, "photo.png");
+        let source_before = fs::read(&source).unwrap();
         let first = write_transformed_image(request(
             source.clone(),
             directory.0.clone(),
@@ -637,7 +776,7 @@ mod tests {
         .unwrap();
         fs::write(directory.0.join("photo (1).jpg"), b"keep-one").unwrap();
         let second = write_transformed_image(request(
-            source,
+            source.clone(),
             directory.0.clone(),
             OutputFormat::Jpeg,
             ConflictPolicy::CreateCopy,
@@ -650,58 +789,44 @@ mod tests {
             fs::read(directory.0.join("photo (1).jpg")).unwrap(),
             b"keep-one"
         );
+        assert_eq!(fs::read(source).unwrap(), source_before);
     }
 
     #[test]
-    fn skip_returns_before_transform_and_preserves_destination() {
-        let directory = TestDirectory::new();
-        let source = directory.0.join("broken.png");
-        fs::write(&source, b"not an image").unwrap();
-        let destination = directory.0.join("broken.jpg");
-        fs::write(&destination, b"existing").unwrap();
-
-        let result = write_transformed_image(request(
-            source,
-            directory.0.clone(),
-            OutputFormat::Jpeg,
-            ConflictPolicy::Skip,
-        ));
-
-        assert!(matches!(result.unwrap(), WriteImageResult::Skipped { .. }));
-        assert_eq!(fs::read(destination).unwrap(), b"existing");
-    }
-
-    #[test]
-    fn skip_existing_valid_output_is_not_an_error() {
-        let directory = TestDirectory::new();
-        let source = write_source(&directory.0, "photo.png");
-        let destination = directory.0.join("photo.jpg");
-        fs::write(&destination, b"existing").unwrap();
-        let result = write_transformed_image(request(
-            source,
-            directory.0.clone(),
-            OutputFormat::Jpeg,
-            ConflictPolicy::Skip,
-        ))
-        .unwrap();
-        assert!(matches!(result, WriteImageResult::Skipped { .. }));
-        assert_eq!(fs::read(destination).unwrap(), b"existing");
+    fn create_copies_flattens_mixed_sources_without_modifying_them() {
+        let root = TestDirectory::new();
+        let output = root.0.join("output");
+        fs::create_dir(&output).unwrap();
+        for folder in ["one", "two/nested"] {
+            let directory = root.0.join(folder);
+            fs::create_dir_all(&directory).unwrap();
+            let source = write_source(&directory, &format!("{}.png", folder.replace('/', "-")));
+            let before = fs::read(&source).unwrap();
+            let result = write_transformed_image(request(
+                source.clone(),
+                output.clone(),
+                OutputFormat::Jpeg,
+                ConflictPolicy::CreateCopy,
+            ))
+            .unwrap();
+            assert_eq!(written_path(&result).parent(), Some(output.as_path()));
+            assert_eq!(fs::read(source).unwrap(), before);
+        }
     }
 
     #[test]
     fn overwrite_replaces_only_with_complete_decodable_output() {
         let directory = TestDirectory::new();
         let source = write_source(&directory.0, "source.png");
-        let destination = directory.0.join("source.jpg");
-        fs::write(&destination, b"old destination").unwrap();
         let result = write_transformed_image(request(
-            source,
+            source.clone(),
             directory.0.clone(),
-            OutputFormat::Jpeg,
+            OutputFormat::Original,
             ConflictPolicy::Overwrite,
         ))
         .unwrap();
         let path = written_path(&result);
+        assert_eq!(path, source);
         assert_eq!(image::open(&path).unwrap().dimensions(), (8, 4));
         match result {
             WriteImageResult::Written {
@@ -744,18 +869,6 @@ mod tests {
         .unwrap();
         assert_eq!(written_path(&copy), directory.0.join("copy (1).png"));
         assert!(copy_source.exists());
-
-        let skip_source = write_source(&directory.0, "skip.png");
-        let before = fs::read(&skip_source).unwrap();
-        let skipped = write_transformed_image(request(
-            skip_source.clone(),
-            directory.0.clone(),
-            OutputFormat::Original,
-            ConflictPolicy::Skip,
-        ))
-        .unwrap();
-        assert!(matches!(skipped, WriteImageResult::Skipped { .. }));
-        assert_eq!(fs::read(skip_source).unwrap(), before);
     }
 
     #[test]
@@ -763,24 +876,252 @@ mod tests {
         let directory = TestDirectory::new();
         let source = directory.0.join("broken.png");
         fs::write(&source, b"not an image").unwrap();
-        let destination = directory.0.join("broken.jpg");
-        fs::write(&destination, b"existing").unwrap();
+        let before = fs::read(&source).unwrap();
         let result = write_transformed_image(request(
-            source,
+            source.clone(),
             directory.0.clone(),
-            OutputFormat::Jpeg,
+            OutputFormat::Original,
             ConflictPolicy::Overwrite,
         ));
         assert_eq!(
             result.unwrap_err().code,
             WriteImageErrorCode::TransformFailed
         );
-        assert_eq!(fs::read(destination).unwrap(), b"existing");
+        assert_eq!(fs::read(source).unwrap(), before);
         assert!(fs::read_dir(&directory.0).unwrap().all(|entry| !entry
             .unwrap()
             .file_name()
             .to_string_lossy()
             .starts_with(".pixchisel-")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_original_preserves_source_when_temporary_creation_fails() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "unwritable.png");
+        let before = fs::read(&source).unwrap();
+        fs::set_permissions(&directory.0, fs::Permissions::from_mode(0o555)).unwrap();
+        let result = write_transformed_image(request(
+            source.clone(),
+            directory.0.clone(),
+            OutputFormat::Original,
+            ConflictPolicy::Overwrite,
+        ));
+        fs::set_permissions(&directory.0, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            result.unwrap_err().code,
+            WriteImageErrorCode::OutputDirectoryNotWritable
+        );
+        assert_eq!(fs::read(source).unwrap(), before);
+    }
+
+    #[test]
+    fn compress_never_grows_for_any_format_but_convert_and_resize_may() {
+        assert!(is_not_smaller(WriteOperation::Compress, 101, 100));
+        assert!(is_not_smaller(WriteOperation::Compress, 100, 100));
+        assert!(!is_not_smaller(WriteOperation::Compress, 99, 100));
+        assert!(!is_not_smaller(WriteOperation::Convert, 101, 100));
+        assert!(!is_not_smaller(WriteOperation::Resize, 101, 100));
+    }
+
+    #[test]
+    fn active_cancellation_stops_before_saving_and_preserves_the_source() {
+        let root = TestDirectory::new();
+        let source = write_source(&root.0, "cancel.jpg");
+        let before = fs::read(&source).unwrap();
+        let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let progress_flag = cancelled.clone();
+        let check_flag = cancelled.clone();
+        let mut stages = Vec::new();
+
+        let result = write_transformed_image_with_progress_and_cancellation(
+            request(
+                source.clone(),
+                root.0.clone(),
+                OutputFormat::Webp,
+                ConflictPolicy::CreateCopy,
+            ),
+            |progress| {
+                stages.push(progress.stage);
+                if progress.stage == ProcessingStage::Optimizing {
+                    progress_flag.store(true, std::sync::atomic::Ordering::Release);
+                }
+            },
+            || check_flag.load(std::sync::atomic::Ordering::Acquire),
+        );
+
+        assert_eq!(result.unwrap_err().code, WriteImageErrorCode::Cancelled);
+        assert_eq!(
+            stages,
+            vec![
+                ProcessingStage::Preparing,
+                ProcessingStage::Decoding,
+                ProcessingStage::Optimizing,
+            ]
+        );
+        assert_eq!(fs::read(&source).unwrap(), before);
+        assert_eq!(fs::read_dir(&root.0).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn already_optimized_png_writes_no_copy_and_preserves_original() {
+        let root = TestDirectory::new();
+        let source = write_source(&root.0, "optimized.png");
+        let first = write_transformed_image(request(
+            source,
+            root.0.clone(),
+            OutputFormat::Png,
+            ConflictPolicy::CreateCopy,
+        ))
+        .unwrap();
+        let optimized = written_path(&first);
+        let before = fs::read(&optimized).unwrap();
+        let copy_directory = root.0.join("copies");
+        fs::create_dir(&copy_directory).unwrap();
+        let mut copy_request = request(
+            optimized.clone(),
+            copy_directory.clone(),
+            OutputFormat::Original,
+            ConflictPolicy::CreateCopy,
+        );
+        copy_request.operation = WriteOperation::Compress;
+        let mut stages = Vec::new();
+        let copy_result = write_transformed_image_with_progress(copy_request, |progress| {
+            stages.push(progress.stage);
+        })
+        .unwrap();
+        assert!(matches!(copy_result, WriteImageResult::NotSmaller { .. }));
+        assert_eq!(
+            stages,
+            vec![
+                ProcessingStage::Preparing,
+                ProcessingStage::Decoding,
+                ProcessingStage::Optimizing,
+                ProcessingStage::Encoding,
+            ]
+        );
+        assert!(fs::read_dir(copy_directory).unwrap().next().is_none());
+        assert_eq!(fs::read(&optimized).unwrap(), before);
+
+        let mut replace_request = request(
+            optimized.clone(),
+            root.0.clone(),
+            OutputFormat::Original,
+            ConflictPolicy::Overwrite,
+        );
+        replace_request.operation = WriteOperation::Compress;
+        let replace_result = write_transformed_image(replace_request).unwrap();
+        assert!(matches!(
+            replace_result,
+            WriteImageResult::NotSmaller { .. }
+        ));
+        assert_eq!(fs::read(optimized).unwrap(), before);
+    }
+
+    #[test]
+    fn replace_original_preserves_each_lossy_and_lossless_source_format() {
+        for (name, format) in [
+            ("photo.jpg", OutputFormat::Jpeg),
+            ("graphic.png", OutputFormat::Png),
+            ("asset.webp", OutputFormat::Webp),
+        ] {
+            let directory = TestDirectory::new();
+            let source = write_source(&directory.0, name);
+            let result = write_transformed_image(request(
+                source.clone(),
+                directory.0.clone(),
+                OutputFormat::Original,
+                ConflictPolicy::Overwrite,
+            ))
+            .unwrap();
+            assert_eq!(written_path(&result), source);
+            assert_eq!(detect_input_format(&source).unwrap(), format);
+            assert_eq!(image::open(source).unwrap().dimensions(), (8, 4));
+        }
+    }
+
+    #[test]
+    fn replace_original_resize_changes_dimensions_in_place() {
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "resize.png");
+        let mut request = request(
+            source.clone(),
+            directory.0.clone(),
+            OutputFormat::Original,
+            ConflictPolicy::Overwrite,
+        );
+        request.settings.resize.mode = ResizeMode::Width;
+        request.settings.resize.width = 4;
+        let result = write_transformed_image(request).unwrap();
+        assert_eq!(written_path(&result), source);
+        assert_eq!(image::open(source).unwrap().dimensions(), (4, 2));
+    }
+
+    #[test]
+    fn replace_original_conversion_finalizes_then_removes_source() {
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "convert.png");
+        let destination = directory.0.join("convert.jpg");
+        let result = write_transformed_image(request(
+            source.clone(),
+            directory.0.clone(),
+            OutputFormat::Jpeg,
+            ConflictPolicy::Overwrite,
+        ))
+        .unwrap();
+        assert_eq!(written_path(&result), destination);
+        assert!(!source.exists());
+        assert_eq!(
+            detect_input_format(&destination).unwrap(),
+            OutputFormat::Jpeg
+        );
+        assert_eq!(image::open(destination).unwrap().dimensions(), (8, 4));
+    }
+
+    #[test]
+    fn replace_original_conversion_never_overwrites_an_unrelated_target() {
+        let directory = TestDirectory::new();
+        let source = write_source(&directory.0, "conflict.png");
+        let source_before = fs::read(&source).unwrap();
+        let destination = directory.0.join("conflict.jpg");
+        fs::write(&destination, b"unrelated").unwrap();
+        let error = write_transformed_image(request(
+            source.clone(),
+            directory.0.clone(),
+            OutputFormat::Jpeg,
+            ConflictPolicy::Overwrite,
+        ))
+        .unwrap_err();
+        assert_eq!(error.code, WriteImageErrorCode::DestinationConflict);
+        assert_eq!(fs::read(source).unwrap(), source_before);
+        assert_eq!(fs::read(destination).unwrap(), b"unrelated");
+    }
+
+    #[test]
+    fn replace_original_uses_each_sources_own_directory() {
+        let root = TestDirectory::new();
+        let first_directory = root.0.join("day-one");
+        let second_directory = root.0.join("day-two/nested");
+        fs::create_dir_all(&first_directory).unwrap();
+        fs::create_dir_all(&second_directory).unwrap();
+        for source in [
+            write_source(&first_directory, "a.png"),
+            write_source(&second_directory, "b.png"),
+        ] {
+            let result = write_transformed_image(WriteImageRequest {
+                source_path: source.clone(),
+                settings: settings(OutputFormat::Original),
+                destination: WriteDestination::ReplaceOriginal,
+                operation: WriteOperation::Resize,
+            })
+            .unwrap();
+            assert_eq!(written_path(&result), source);
+            assert!(source.exists());
+        }
     }
 
     #[test]
@@ -827,25 +1168,6 @@ mod tests {
                 (ProcessingStage::Completed, 100),
             ]
         );
-    }
-
-    #[test]
-    fn skipped_output_never_reports_false_completion() {
-        let directory = TestDirectory::new();
-        let source = write_source(&directory.0, "skip-progress.png");
-        let mut stages = Vec::new();
-        let result = write_transformed_image_with_progress(
-            request(
-                source,
-                directory.0.clone(),
-                OutputFormat::Original,
-                ConflictPolicy::Skip,
-            ),
-            |progress| stages.push(progress.stage),
-        )
-        .unwrap();
-        assert!(matches!(result, WriteImageResult::Skipped { .. }));
-        assert_eq!(stages, vec![ProcessingStage::Preparing]);
     }
 
     #[test]

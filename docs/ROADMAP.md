@@ -111,10 +111,46 @@ performed.
   **Complete.**
 - Skip directory symlinks and silently ignore unsupported folder contents.
   **Complete.**
-- Expose only Create Copy and Replace Existing in V1. **Complete; native Skip is
-  retained internally for compatibility.**
+- Expose only Create Copy and Replace Existing in V1. **Completed in Phase 2.6,
+  then superseded by destination-oriented save modes in Phase 2.7.**
 - Keep output selection explicit and flatten folder batches into the selected
   destination. **Complete.**
+
+### Phase 2.7 — JPEG evidence and save destinations
+
+- Benchmark image-rs JPEG output across representative generated content,
+  quality points, decode checks, timing, and PSNR. **Complete.**
+- Review specialized encoders without adding an unproven production dependency.
+  **Complete; pure-Rust `jpeg-encoder` selected and 82/65/45 retained.**
+- Replace conflict-oriented UI state with Create Copies and Replace Originals.
+  **Complete.**
+- Require a folder only for Create Copies and replace mixed-directory sources in
+  their own locations. **Complete.**
+- Make converted-target conflicts non-destructive and remove the source only
+  after successful converted-file finalization. **Complete.**
+
+### Phase 2.7.1 — Lossless PNG optimization and never-grow compression
+
+- Replace the fast default PNG output with in-memory Oxipng optimization using
+  distinct Standard, Strong, and Maximum effort presets. **Complete.**
+- Preserve exact RGBA pixels and transparency; do not introduce palette
+  quantization into the lossless Compress workflow. **Complete.**
+- Prevent JPEG, PNG, and WebP Compress operations from writing candidates that
+  are equal to or larger than their sources. **Complete with typed Already
+  Optimized results.**
+- Validate representative real-world PNGs on both release platforms. **Automated
+  generated-corpus coverage is complete; macOS real-file and Windows package QA
+  remain.**
+
+### Phase 2.7.2 — Active cancellation
+
+- Send a batch-scoped cancellation signal from React to active native jobs.
+  **Complete.**
+- Stop transforms at safe native checkpoints and prevent cancelled work from
+  finalizing an output. **Complete.**
+- Interrupt long WebP encoding through libwebp's progress callback. **Complete.**
+- Measure cancellation latency on representative large JPEG-to-WebP batches in
+  release builds. **Implementation complete; desktop timing QA remains.**
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.

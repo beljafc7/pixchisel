@@ -42,10 +42,11 @@ bundle.
 produce the existing native `BatchSettings`, so decoding, transformation,
 encoding, safe writing, cancellation, and results remain one shared engine.
 
-Compress preserves format and maps Standard/Strong/Maximum to lossy qualities
-82/65/45. Convert targets a selected format at internal quality 92 with resize
-disabled. Resize preserves format at internal quality 92. PNG always uses the
-existing lossless encoder and does not claim preset-dependent quality changes.
+Compress preserves format and maps Standard/Strong/Maximum to lossy JPEG/WebP
+qualities 82/65/45 and lossless Oxipng effort presets 2/4/6. Convert targets a
+selected format at internal quality 92 with resize disabled. Resize preserves
+format at internal quality 92. PNG presets alter compression search effort, not
+pixels, alpha, or palette size.
 
 ## Version metadata
 
@@ -121,8 +122,9 @@ without a running Tauri window.
 ## Command and event boundary
 
 Requests and responses should use explicit serializable structures rather than
-loosely typed maps. A batch request will eventually contain input paths, output
-directory, format, quality, resize mode, metadata policy, and conflict policy.
+loosely typed maps. Native write requests contain a source path, validated batch
+settings, and a discriminated save destination rather than ambiguous output
+directory and conflict fields.
 
 Long-running processing should return a job identifier promptly. Progress and
 completion should arrive as events that contain the job identifier and stable
@@ -191,10 +193,63 @@ oriented source dimensions. Targets cannot exceed 32,768 pixels on either axis.
 WebP has a stricter codec limit of 16,383 pixels per axis and returns a typed
 format-specific error above it. Pixel resampling uses Lanczos3.
 
-JPEG encoding uses the requested quality from 1 through 100. RGBA pixels are
-explicitly composited over white before conversion to RGB. PNG encoding writes
-RGBA and therefore retains pixel alpha. Lossy WebP uses the quality-aware
-`webp` wrapper around statically built libwebp.
+JPEG encoding uses `jpeg-encoder` 0.7.1 with quality from 1 through 100. RGBA pixels are
+explicitly composited over white before conversion to RGB. PNG encoding first
+writes lossless RGBA with image-rs, then optimizes those bytes in memory with
+Oxipng 10.2.0. Oxipng presets 2/4/6 represent Standard/Strong/Maximum effort.
+Alpha and all decoded RGBA pixels remain exact, including hidden RGB behind
+transparent pixels. Source metadata is already omitted by the decode-to-pixels
+pipeline. Lossy WebP uses the quality-aware `webp` wrapper around statically
+built libwebp.
+
+The PNG evaluation rejected palette quantization for V1. `libimagequant` can
+produce materially smaller palette PNGs, but quantization is lossy and its free
+license is GPLv3-or-later; proprietary distribution requires a separate
+commercial license. Oxipng is MIT-licensed, performs lossless optimization, and
+matches PixChisel's proprietary-freeware distribution model without an external
+runtime executable.
+
+A generated six-image corpus (photographic pattern, alpha, flat color, text,
+gradient, and noise; 512×384) compared the prior fast image-rs PNG output with
+Oxipng presets 2/4/6 and verified exact decoded RGBA equality. Preset 2 took
+about 4–55 ms, preset 4 about 12–89 ms, and preset 6 about 44–550 ms on the
+benchmark Mac. Presets 4 and 6 frequently differed by only a few bytes, so
+Maximum is intentionally an effort setting rather than a promised savings tier.
+
+The selected encoder uses 4:4:4 sampling to protect color detail, progressive
+output, and image-specific optimized Huffman tables. The previous image-rs
+0.25.10 encoder used baseline sequential output and fixed standard Huffman
+tables. Although image-rs documented 4:2:2, its implementation used equal
+sampling factors and was effectively 4:4:4 for PixChisel's RGB input. PixChisel
+does not copy JPEG ICC or EXIF data.
+
+Phase 2.7 benchmarked qualities 95, 90, 85, 82, 75, 65, 55, 45, 35, and 25 on
+generated photographic-style, high-detail, gradient, flat-color, and sharp-edge
+images. All 50 outputs decoded at 1024×768. PSNR was supporting evidence, not a
+substitute for perception. At qualities 82/65/45, results were: photographic
+39,385/31,678/27,988 bytes at 49.26/46.91/44.40 dB; high-detail
+1,133,247/813,353/606,526 bytes at 25.00/19.60/15.98 dB; and sharp-edge
+102,898/87,401/78,958 bytes at 44.59/39.51/38.44 dB. Release-mode encoding took
+approximately 5–19 ms per image at those presets on the benchmark Mac. Moving
+from quality 45 to 35 saved only about 1–7% on four non-noise cases while
+degradation continued, so Standard/Strong/Maximum remain 82/65/45.
+
+The same corpus then compared pure-Rust `jpeg-encoder` with progressive output,
+optimized Huffman tables, and both 4:2:0 and 4:4:4 sampling. 4:2:0 was rejected:
+it reduced bytes sharply but caused severe PSNR loss on chroma-heavy detail and
+flat-color edges. At 4:4:4, the alternative retained essentially equivalent PSNR
+while producing files about 3–23% smaller across the corpus and presets. It was
+therefore selected. It adds one approximately 150 KB source crate and no native
+library, external executable, build tool, or runtime dependency; final packaged
+binary delta still requires release-build measurement. The comparable macOS
+debug executable increased by 464,208 bytes (about 1.2%), from 38,729,640 to
+39,193,848 bytes.
+
+MozJPEG was not added because its trellis and scan optimization require a
+C/assembly build and native-library distribution. Jpegli offers further
+perceptual techniques but adds a C++ build and less established Rust integration.
+The selected pure-Rust crate is cross-platform, supports macOS and Windows, and
+is licensed under `(MIT OR Apache-2.0) AND IJG`.
 
 ### Metadata reality
 
@@ -217,13 +272,20 @@ contract so behavior stays explicit.
 
 ## Output filesystem boundary
 
-Phase 2.2 adds `write_transformed_image` for one image. Its request contains a
-source path, user-selected output directory, validated batch settings, and one
-of `overwrite`, `createCopy`, or `skip`. The command runs on Tauri's blocking
-pool. React receives only paths and typed result metadata; encoded bytes never
+`write_transformed_image` receives a source path, validated batch settings, and
+either `{ mode: "directory", path }` or `{ mode: "replaceOriginal" }`. Invalid
+combinations such as replace-original plus an arbitrary output folder cannot be
+represented. The command runs on Tauri's blocking pool. Encoded bytes never
 cross the command boundary.
 
-The output directory is chosen with the existing native dialog permission and
+For Compress only, the writer compares encoded candidate length with the source
+length before emitting the Saving stage or touching the destination. A candidate
+that is equal or larger returns the typed `notSmaller` result. React renders it
+as Already Optimized and excludes it from written-byte savings totals. This
+applies uniformly to JPEG, PNG, and WebP; Convert and Resize remain allowed to
+grow.
+
+The Create Copies directory is chosen with the existing native dialog permission and
 retained only in React session state. No general filesystem or shell plugin
 permission is granted. Before a batch starts, a narrow native preflight verifies
 that the destination still exists, is a directory, and accepts an
@@ -248,8 +310,8 @@ removes a partial destination if copying fails. Hard links remain preferable
 because their finalization is atomic; the portable fallback can briefly expose a
 partial new file to other processes, but never overwrites user data.
 
-Skip checks an existing deterministic destination before decoding or encoding.
-Overwrite always transforms fully first, then writes, flushes, and syncs an
+Replace Originals resolves each source's parent folder independently. Same-format
+Compress and Resize always transform fully first, then write, flush, and sync an
 exclusive hidden temporary file in the destination directory. On Unix, rename
 atomically replaces the destination. Standard Rust rename does not replace an
 existing Windows file, so Windows first moves the completed destination to a
@@ -258,10 +320,11 @@ if finalization fails, and removes it after success. This is recoverable but has
 a brief non-atomic path transition on Windows.
 
 When source and destination are the same, transformation completes in memory and
-the temporary file is fully durable before replacement begins. Create-copy picks
-a sibling, and skip leaves the source untouched. Failures before finalization do
-not modify either source or an existing destination; temporary output is removed
-on normal error paths where possible.
+the temporary file is durable before replacement begins. Format conversion
+finalizes the new extension without overwrite and removes the source only after
+that succeeds. A pre-existing converted target is a conflict and remains
+untouched. Failures before finalization do not modify the source or an existing
+destination; temporary output is removed on normal error paths where possible.
 
 ## Batch orchestration
 
@@ -284,11 +347,14 @@ call is recorded on its own item and does not stop another worker. Disk-full and
 other write failures use the same isolation; PixChisel currently does not
 pre-estimate free space.
 
-Cancellation is cooperative at file boundaries. The frontend cancellation token
-prevents workers from claiming another queued item. Native calls already active
-are not interrupted and complete their existing safe write or error normally;
-every path that was never started becomes cancelled. This preserves temporary
-file and finalization guarantees without forcefully terminating Rust work.
+Cancellation uses a batch-scoped atomic signal shared between React and active
+Rust commands. The frontend token immediately prevents workers from claiming
+another queued item. Native transforms check the same signal between decoding,
+resizing, encoding, and safe-write boundaries. WebP additionally installs
+libwebp's progress callback so a long encode can abort from inside the codec.
+Cancelled work never finalizes an output; temporary files are removed by their
+owner on exit. A decoder or non-WebP codec call that does not expose an interrupt
+hook may still need to return to the next checkpoint before cancellation settles.
 
 Progress uses real pipeline milestones rather than invented byte-level values. A
 typed Tauri channel sends source path, stage, and fixed percentage at Preparing
@@ -301,7 +367,7 @@ total produces a zero percentage, while larger output is described as larger
 rather than negative savings.
 
 Completed states remain visible until the queue or batch configuration changes.
-Changing format, quality, resize, upscaling, output directory, or conflict policy
+Changing format, quality, resize, upscaling, output directory, or save mode
 clears all prior row results and the summary so they cannot appear to describe
 the new configuration. Removing one item removes only that item's result and
 recalculates the summary. A new full Chisel action resets processing state and
@@ -310,7 +376,7 @@ only those items, leaving written and skipped results untouched.
 
 Clear All removes the queue, import errors, thumbnail references, processing
 states, and summary. The mounted options state deliberately retains batch
-settings and the selected output folder for convenient repeated work. Queue
+settings, save mode, and any selected copy folder for convenient repeated work. Queue
 mutation and all processing settings are locked only while a batch is active.
 
 Changing workflow requires confirmation when a queue is loaded, then clears that
@@ -353,7 +419,7 @@ filesystem are not exposed. React converts returned thumbnail paths with
 - Write to a temporary file in the destination filesystem, then rename or replace
   according to the selected policy.
 - Clean temporary files after failure or cancellation where possible.
-- Do not modify source metadata or source files unless overwrite is selected.
+- Do not modify source metadata or source files unless Replace Originals is selected.
 - Never encode directly into a final path. Finalization occurs only after a
   complete same-directory temporary write has been flushed and synchronized.
 
@@ -372,15 +438,23 @@ detection and header-level dimension inspection without decoding the full pixel
 buffer. It is mature, actively maintained, dual-licensed under MIT or Apache-2.0,
 and introduces no native system library requirement on macOS or Windows.
 
-The selected crate reads all V1 formats and encodes JPEG, PNG, and lossless WebP,
-keeping inspection and most transformations in one ecosystem. Its pure-Rust
+The selected crate reads all V1 formats and encodes PNG and lossless WebP,
+keeping inspection and most transformations in one ecosystem. `jpeg-encoder`
+provides the evidence-selected progressive, optimized-Huffman JPEG output. The image crate's pure-Rust
 WebP encoder does not support lossy quality settings. Phase 2.1 therefore adds
-the narrowly scoped `webp` safe wrapper for lossy WebP output. It is MIT or
-Apache-2.0 licensed and uses `libwebp-sys` to statically compile the upstream
-BSD-licensed libwebp sources. Users do not install a binary or shared library.
+`libwebp-sys` statically compiles the upstream BSD-licensed libwebp sources for
+lossy WebP output. PixChisel uses the native picture API directly so it can
+install libwebp's cancellation progress hook. Users do not install a binary or shared library.
 The build requires the normal C toolchain available to Rust desktop builds on
 macOS and Windows, and increases compile time and binary size compared with the
 pure-Rust lossless encoder.
+
+Oxipng 10.2.0 supplies the PNG optimization pass under the MIT license. With its
+default features disabled it still uses the Apache-2.0 `libdeflater` and
+`libdeflate-sys` crates, which statically build libdeflate and add no runtime
+executable or shared-library requirement. This adds native C compilation to the
+PNG path's build graph; PixChisel already requires a native toolchain for the
+statically built WebP codec.
 
 Restricting features avoids the wider default format set, Rayon, AVIF tooling,
 and unnecessary binary/dependency cost. The crate can expose some orientation,

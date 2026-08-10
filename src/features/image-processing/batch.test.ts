@@ -138,6 +138,25 @@ describe("batch processor", () => {
       "written", "written", "cancelled", "cancelled",
     ]);
   });
+
+  it("maps native active cancellation to cancelled instead of failed", async () => {
+    const updates: FileProcessingState[] = [];
+    const results = await runBoundedBatch(
+      ["active"],
+      async () => {
+        throw { code: "cancelled", message: "Processing was cancelled." };
+      },
+      { cancelled: false },
+      (_path, state) => updates.push(state),
+      1,
+    );
+
+    expect(results).toEqual([{ status: "cancelled" }]);
+    expect(updates).toEqual([
+      { status: "processing", stage: "preparing", percent: 5 },
+      { status: "cancelled" },
+    ]);
+  });
 });
 
 describe("batch summary", () => {
@@ -172,5 +191,19 @@ describe("batch summary", () => {
       { status: "written", result: written("a", 0, 10) as Extract<WriteImageResult, { status: "written" }> },
     ]);
     expect(zero.percentageDifference).toBe(0);
+  });
+
+  it("counts already-optimized items as non-errors without fake byte savings", () => {
+    const alreadyOptimized: FileProcessingState = {
+      status: "notSmaller",
+      result: { status: "notSmaller", sourcePath: "a", outputFormat: "png", originalSizeBytes: 100, candidateSizeBytes: 100 },
+    };
+    const all = summarizeBatch([alreadyOptimized, alreadyOptimized]);
+    expect(all).toMatchObject({ attempted: 2, written: 0, notSmaller: 2, failed: 0, originalBytes: 0, outputBytes: 0 });
+    const mixed = summarizeBatch([
+      { status: "written", result: written("b", 100, 40) as Extract<WriteImageResult, { status: "written" }> },
+      alreadyOptimized,
+    ]);
+    expect(mixed).toMatchObject({ written: 1, notSmaller: 1, originalBytes: 100, outputBytes: 40, percentageDifference: 60 });
   });
 });

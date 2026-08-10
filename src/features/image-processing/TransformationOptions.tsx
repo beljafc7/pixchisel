@@ -1,6 +1,9 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
+  cancelProcessing,
+  clearProcessingCancellation,
+  createCancellationId,
   openOutputFolder,
   preflightOutputDirectory,
   writeTransformedImage,
@@ -17,10 +20,11 @@ import {
 import { isBatchSettingsValid, validateBatchSettings } from "./validation";
 import {
   compactOutputDirectory,
-  createConflictPolicyUpdate,
-  V1_CONFLICT_OPTIONS,
+  createSaveModeUpdate,
+  SAVE_MODE_OPTIONS,
   createDefaultOutputSettings,
   isFutureProcessingReady,
+  type OutputSettings,
 } from "./output";
 import { createWriteImageRequest } from "./output";
 import {
@@ -86,6 +90,7 @@ export function TransformationOptions({
   const [output, setOutput] = useState(createDefaultOutputSettings);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [lastBatchPaths, setLastBatchPaths] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
   const cancellation = useRef<CancellationToken | null>(null);
@@ -143,18 +148,26 @@ export function TransformationOptions({
   }
 
   async function startBatch(paths: string[], resetAll: boolean) {
-    if (isRunning || !output.outputDirectory || paths.length === 0 || !settingsAreValid) return;
-    try {
-      await preflightOutputDirectory(output.outputDirectory);
-      setFolderError(null);
-    } catch (error) {
-      const message = normalizeOutputError(error);
-      setFolderError(message);
-      setStatusMessage(message);
-      return;
+    if (isRunning || paths.length === 0 || !settingsAreValid || !isFutureProcessingReady(paths.length, settings, output)) return;
+    if (output.saveMode === "createCopies") {
+      const directory = output.outputDirectory;
+      if (!directory) return;
+      try {
+        await preflightOutputDirectory(directory);
+        setFolderError(null);
+      } catch (error) {
+        const message = normalizeOutputError(error);
+        setFolderError(message);
+        setStatusMessage(message);
+        return;
+      }
     }
-    const token: CancellationToken = { cancelled: false };
+    const token: CancellationToken = {
+      cancelled: false,
+      nativeId: createCancellationId(),
+    };
     cancellation.current = token;
+    setIsCancelling(false);
     setIsRunning(true);
     setLastBatchPaths(paths);
     setStatusMessage(`Processing ${paths.length} ${paths.length === 1 ? "image" : "images"}.`);
@@ -164,21 +177,35 @@ export function TransformationOptions({
       await runBoundedBatch(
         paths,
         async (path) => {
-          const request = createWriteImageRequest(path, settings, output);
+          const request = createWriteImageRequest(path, settings, output, workflow);
           if (!request) throw { code: "writeFailed", message: "Output settings are incomplete." };
-          return writeTransformedImage(request, (progress) => {
-            onItemState(progress.path, processingStateFromProgress(progress));
-          });
+          return writeTransformedImage(
+            request,
+            (progress) => {
+              if (!token.cancelled) {
+                onItemState(progress.path, processingStateFromProgress(progress));
+              }
+            },
+            token.nativeId,
+          );
         },
         token,
         onItemState,
         BATCH_CONCURRENCY,
       );
     } finally {
+      if (token.nativeId) {
+        await clearProcessingCancellation(token.nativeId).catch(() => undefined);
+      }
       cancellation.current = null;
+      setIsCancelling(false);
       setIsRunning(false);
       onRunningChange(false);
-      setStatusMessage("Batch complete. Review the results below.");
+      setStatusMessage(
+        token.cancelled
+          ? "Cancellation complete. Cancelled outputs were not saved."
+          : "Batch complete. Review the results below.",
+      );
       requestAnimationFrame(() => primaryAction.current?.focus());
     }
   }
@@ -186,7 +213,21 @@ export function TransformationOptions({
   function cancelBatch() {
     if (cancellation.current) {
       cancellation.current.cancelled = true;
-      setStatusMessage("Cancellation requested. Active files will finish safely.");
+      setIsCancelling(true);
+      for (const path of lastBatchPaths) {
+        const state = processingStates[path];
+        if (state?.status === "processing") {
+          onItemState(path, { status: "cancelling" });
+        } else if (!state || state.status === "ready") {
+          onItemState(path, { status: "cancelled" });
+        }
+      }
+      if (cancellation.current.nativeId) {
+        void cancelProcessing(cancellation.current.nativeId).catch(() => {
+          setStatusMessage("Cancellation requested. Active native work could not be interrupted.");
+        });
+      }
+      setStatusMessage("Cancelling. Active files will stop before saving when safe.");
     }
   }
 
@@ -296,40 +337,19 @@ export function TransformationOptions({
         </fieldset>}
 
         <fieldset className="option-group option-group--wide output-options">
-          <legend>Output</legend>
-          <div className="output-options__row">
-            <div className="output-folder">
-              <button className="secondary-button" type="button" onClick={chooseOutputDirectory} disabled={isRunning}>
-                {output.outputDirectory ? "Change Folder" : "Choose Folder"}
-              </button>
-              <span title={output.outputDirectory ?? undefined}>
-                {output.outputDirectory
-                  ? compactOutputDirectory(output.outputDirectory)
-                  : "No folder selected"}
-              </span>
-              {output.outputDirectory && (
-                <button className="text-button" type="button" disabled={isRunning} onClick={() => void showOutputFolder()}>
-                  Open Output Folder
-                </button>
-              )}
-            </div>
-            <label className="conflict-control">
-              <span>When a file exists</span>
-              <select
-                value={output.conflictPolicy}
-                disabled={isRunning}
-                onChange={(event) => {
-                  const updateConflictPolicy = createConflictPolicyUpdate(event.currentTarget.value);
-                  invalidateResults();
-                  setOutput(updateConflictPolicy);
-                }}
-              >
-                {V1_CONFLICT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <legend>Save</legend>
+          <SaveDestinationControls
+            output={output}
+            disabled={isRunning}
+            onChooseDirectory={() => void chooseOutputDirectory()}
+            onOpenDirectory={() => void showOutputFolder()}
+            onSaveModeChange={(value) => {
+              const updateSaveMode = createSaveModeUpdate(value);
+              invalidateResults();
+              setOutput(updateSaveMode);
+              setFolderError(null);
+            }}
+          />
           {folderError && <p className="field-error" role="alert">{folderError}</p>}
         </fieldset>
       </div>
@@ -337,7 +357,7 @@ export function TransformationOptions({
       {lastBatchPaths.length > 0 && (
         <div className="batch-progress" aria-live="polite">
           <div className="batch-progress__labels">
-            <span>{isRunning ? `Processing ${completedCount} of ${lastBatchPaths.length}` : `${completedCount} of ${lastBatchPaths.length} complete`}</span>
+            <span>{isRunning ? `${isCancelling ? "Cancelling" : "Processing"} ${completedCount} of ${lastBatchPaths.length}` : `${completedCount} of ${lastBatchPaths.length} complete`}</span>
             <span>{progressPercentage}%</span>
           </div>
           <progress value={completedCount} max={lastBatchPaths.length} aria-label="Overall batch progress" />
@@ -355,10 +375,10 @@ export function TransformationOptions({
       <div className="options-panel__action">
         <span>
           {isRunning
-            ? "Active files will finish safely"
+            ? isCancelling ? "Stopping active files safely" : "Active files will finish safely"
             : !settingsAreValid
             ? "Check the highlighted settings"
-            : !output.outputDirectory
+            : output.saveMode === "createCopies" && !output.outputDirectory
               ? "Choose an output folder to continue"
               : futureProcessingReady
                 ? "Ready for batch processing"
@@ -366,7 +386,7 @@ export function TransformationOptions({
         </span>
         <div className="options-panel__buttons">
           {isRunning && (
-            <button className="secondary-button" type="button" onClick={cancelBatch}>Cancel</button>
+            <button className="secondary-button" type="button" onClick={cancelBatch} disabled={isCancelling}>{isCancelling ? "Cancelling…" : "Cancel"}</button>
           )}
           {!isRunning && retryPaths.length > 0 && (
             <button
@@ -395,6 +415,51 @@ export function TransformationOptions({
   );
 }
 
+interface SaveDestinationControlsProps {
+  output: OutputSettings;
+  disabled: boolean;
+  onChooseDirectory: () => void;
+  onOpenDirectory: () => void;
+  onSaveModeChange: (value: string) => void;
+}
+
+export function SaveDestinationControls({
+  output,
+  disabled,
+  onChooseDirectory,
+  onOpenDirectory,
+  onSaveModeChange,
+}: SaveDestinationControlsProps) {
+  return <div className="save-destination">
+    <div className="segmented-control segmented-control--two">
+      {SAVE_MODE_OPTIONS.map((option) => <label key={option.value}>
+        <input
+          type="radio"
+          name="save-mode"
+          value={option.value}
+          checked={output.saveMode === option.value}
+          disabled={disabled}
+          onChange={(event) => onSaveModeChange(event.currentTarget.value)}
+        />
+        <span>{option.label}</span>
+      </label>)}
+    </div>
+    {output.saveMode === "createCopies" ? <div className="output-folder">
+      <button className="secondary-button" type="button" onClick={onChooseDirectory} disabled={disabled}>
+        {output.outputDirectory ? "Change Folder" : "Choose Folder"}
+      </button>
+      <span title={output.outputDirectory ?? undefined}>
+        {output.outputDirectory ? compactOutputDirectory(output.outputDirectory) : "No folder selected"}
+      </span>
+      {output.outputDirectory && <button className="text-button" type="button" disabled={disabled} onClick={onOpenDirectory}>
+        Open Output Folder
+      </button>}
+    </div> : <p className="save-destination__warning" role="note">
+      Original files will be replaced. This can't be undone.
+    </p>}
+  </div>;
+}
+
 export function BatchResults({ summary, workflow }: { summary: ReturnType<typeof summarizeBatch>; workflow: WorkflowMode }) {
   const sizeMessage = summary.sizeDifference === "saved"
     ? `${formatFileSize(summary.sizeDifferenceBytes)} saved (${summary.percentageDifference.toFixed(1)}%)`
@@ -413,6 +478,7 @@ export function BatchResults({ summary, workflow }: { summary: ReturnType<typeof
       <div className="batch-results__counts">
         <span><strong>{summary.written}</strong> written</span>
         <span><strong>{summary.skipped}</strong> skipped</span>
+        <span><strong>{summary.notSmaller}</strong> already optimized</span>
         <span><strong>{summary.failed}</strong> failed</span>
         <span><strong>{summary.cancelled}</strong> cancelled</span>
       </div>

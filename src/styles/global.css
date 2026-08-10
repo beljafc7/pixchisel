@@ -637,6 +637,22 @@ input:focus-visible {
   gap: 12px 20px;
 }
 
+.save-destination {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.save-destination .segmented-control {
+  max-width: 28rem;
+}
+
+.save-destination__warning {
+  margin: 0;
+  color: var(--warning-text, #8a4b08);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .output-folder {
   min-width: 0;
   flex-wrap: wrap;
@@ -675,6 +691,10 @@ input:focus-visible {
 
 .segmented-control--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.segmented-control--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .segmented-control label {

@@ -3,8 +3,8 @@ mod filesystem;
 mod imaging;
 
 pub use filesystem::{
-    write_transformed_image, ConflictPolicy, ProcessingProgress, WriteImageError,
-    WriteImageErrorCode, WriteImageRequest, WriteImageResult,
+    write_transformed_image, ConflictPolicy, ProcessingProgress, WriteDestination, WriteImageError,
+    WriteImageErrorCode, WriteImageRequest, WriteImageResult, WriteOperation,
 };
 pub use imaging::transform::{
     transform_image, BatchSettings, EncodedTransformation, MetadataDisposition, OutputFormat,
@@ -20,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(imaging::ThumbnailCache::new(app.handle())?);
+            app.manage(commands::ProcessingCancellation::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -29,6 +30,8 @@ pub fn run() {
             commands::release_thumbnails,
             commands::clear_thumbnail_cache,
             commands::write_transformed_image,
+            commands::cancel_processing,
+            commands::clear_processing_cancellation,
             commands::preflight_output_directory,
             commands::open_output_folder
         ])

@@ -1,23 +1,28 @@
 import type { BatchSettings } from "./settings";
 import { isBatchSettingsValid } from "./validation";
+import type { WorkflowMode } from "../workflows/workflow";
 
-export type ConflictPolicy = "overwrite" | "createCopy" | "skip";
+export type SaveMode = "createCopies" | "replaceOriginals";
 
-export const V1_CONFLICT_OPTIONS = [
-  { value: "createCopy", label: "Create Copy" },
-  { value: "overwrite", label: "Replace Existing" },
-] as const satisfies ReadonlyArray<{ value: ConflictPolicy; label: string }>;
+export const SAVE_MODE_OPTIONS = [
+  { value: "createCopies", label: "Create Copies" },
+  { value: "replaceOriginals", label: "Replace Originals" },
+] as const satisfies ReadonlyArray<{ value: SaveMode; label: string }>;
 
 export interface OutputSettings {
   outputDirectory: string | null;
-  conflictPolicy: ConflictPolicy;
+  saveMode: SaveMode;
 }
+
+export type WriteDestination =
+  | { mode: "directory"; path: string }
+  | { mode: "replaceOriginal" };
 
 export interface WriteImageRequest {
   sourcePath: string;
-  outputDirectory: string;
   settings: BatchSettings;
-  conflictPolicy: ConflictPolicy;
+  destination: WriteDestination;
+  operation: WorkflowMode;
 }
 
 export interface WrittenImageResult {
@@ -43,9 +48,18 @@ export interface SkippedImageResult {
   outputFormat: "jpeg" | "png" | "webp";
 }
 
-export type WriteImageResult = WrittenImageResult | SkippedImageResult;
+export interface NotSmallerImageResult {
+  status: "notSmaller";
+  sourcePath: string;
+  outputFormat: "jpeg" | "png" | "webp";
+  originalSizeBytes: number;
+  candidateSizeBytes: number;
+}
+
+export type WriteImageResult = WrittenImageResult | SkippedImageResult | NotSmallerImageResult;
 
 export type WriteImageErrorCode =
+  | "cancelled"
   | "outputDirectoryMissing"
   | "outputDirectoryNotWritable"
   | "destinationConflict"
@@ -75,6 +89,13 @@ export function parseWriteImageResult(value: unknown): WriteImageResult {
       outputPath: value.outputPath as string,
       outputFormat: value.outputFormat,
     };
+  }
+  if (value.status === "notSmaller") {
+    requireStrings(value, ["sourcePath", "outputFormat"]);
+    if (!isOutputImageFormat(value.outputFormat)) throw invalidResult();
+    if (!["originalSizeBytes", "candidateSizeBytes"].every((key) =>
+      typeof value[key] === "number" && Number.isFinite(value[key]))) throw invalidResult();
+    return value as unknown as NotSmallerImageResult;
   }
   if (value.status === "written") {
     requireStrings(value, ["sourcePath", "outputPath", "inputFormat", "outputFormat", "metadataDisposition"]);
@@ -109,15 +130,15 @@ export const METADATA_BEHAVIOR_MESSAGE =
 export function createDefaultOutputSettings(): OutputSettings {
   return {
     outputDirectory: null,
-    conflictPolicy: "createCopy",
+    saveMode: "createCopies",
   };
 }
 
-export function createConflictPolicyUpdate(value: string): (current: OutputSettings) => OutputSettings {
-  if (!isConflictPolicy(value)) {
-    throw new Error("Unknown conflict policy.");
+export function createSaveModeUpdate(value: string): (current: OutputSettings) => OutputSettings {
+  if (!isSaveMode(value)) {
+    throw new Error("Unknown save mode.");
   }
-  return (current) => ({ ...current, conflictPolicy: value });
+  return (current) => ({ ...current, saveMode: value });
 }
 
 export function isFutureProcessingReady(
@@ -128,8 +149,8 @@ export function isFutureProcessingReady(
   return (
     readyImageCount > 0 &&
     isBatchSettingsValid(settings) &&
-    output.outputDirectory !== null &&
-    isConflictPolicy(output.conflictPolicy)
+    isSaveMode(output.saveMode) &&
+    (output.saveMode === "replaceOriginals" || output.outputDirectory !== null)
   );
 }
 
@@ -137,15 +158,23 @@ export function createWriteImageRequest(
   sourcePath: string,
   settings: BatchSettings,
   output: OutputSettings,
+  operation: WorkflowMode,
 ): WriteImageRequest | null {
-  if (!output.outputDirectory || !isConflictPolicy(output.conflictPolicy)) {
+  if (!isSaveMode(output.saveMode)) {
     return null;
+  }
+  let destination: WriteDestination;
+  if (output.saveMode === "replaceOriginals") {
+    destination = { mode: "replaceOriginal" };
+  } else {
+    if (!output.outputDirectory) return null;
+    destination = { mode: "directory", path: output.outputDirectory };
   }
   return {
     sourcePath,
-    outputDirectory: output.outputDirectory,
     settings,
-    conflictPolicy: output.conflictPolicy,
+    destination,
+    operation,
   };
 }
 
@@ -155,6 +184,6 @@ export function compactOutputDirectory(directory: string): string {
   return finalSegment || directory;
 }
 
-function isConflictPolicy(value: string): value is ConflictPolicy {
-  return value === "overwrite" || value === "createCopy" || value === "skip";
+function isSaveMode(value: string): value is SaveMode {
+  return value === "createCopies" || value === "replaceOriginals";
 }

@@ -65,6 +65,7 @@ impl ProcessingStage {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TransformError {
+    Cancelled,
     InvalidSettings(Vec<settings::ValidationError>),
     FileNotFound,
     PermissionDenied,
@@ -88,11 +89,24 @@ pub fn transform_image(
 pub fn transform_image_with_progress(
     path: &Path,
     settings: &BatchSettings,
+    on_stage: impl FnMut(ProcessingStage),
+) -> Result<EncodedTransformation, TransformError> {
+    transform_image_with_progress_and_cancellation(path, settings, on_stage, || false)
+}
+
+pub fn transform_image_with_progress_and_cancellation(
+    path: &Path,
+    settings: &BatchSettings,
     mut on_stage: impl FnMut(ProcessingStage),
+    should_cancel: impl Fn() -> bool,
 ) -> Result<EncodedTransformation, TransformError> {
     settings
         .validate()
         .map_err(TransformError::InvalidSettings)?;
+
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
 
     on_stage(ProcessingStage::Decoding);
     let file = File::open(path).map_err(|error| match error.kind() {
@@ -114,6 +128,10 @@ pub fn transform_image_with_progress(
         DynamicImage::from_decoder(decoder).map_err(|_| TransformError::DecodeFailed)?;
     image.apply_orientation(orientation);
 
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
+
     on_stage(ProcessingStage::Optimizing);
 
     let original = Dimensions {
@@ -125,17 +143,27 @@ pub fn transform_image_with_progress(
         image = image.resize_exact(target.width, target.height, FilterType::Lanczos3);
     }
 
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
+
     let output_format = match settings.output_format {
         OutputFormat::Original => input_format,
         selected => selected,
     };
-    let quality = if matches!(output_format, OutputFormat::Jpeg | OutputFormat::Webp) {
+    let quality = if matches!(
+        output_format,
+        OutputFormat::Jpeg | OutputFormat::Png | OutputFormat::Webp
+    ) {
         u8::try_from(settings.quality).map_err(|_| TransformError::EncodeFailed)?
     } else {
         82
     };
     on_stage(ProcessingStage::Encoding);
-    let bytes = encode_image(&image, output_format, quality)?;
+    let bytes = encode_image(&image, output_format, quality, &should_cancel)?;
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
     let metadata = TransformationMetadata {
         input_format,
         output_format,
@@ -254,12 +282,14 @@ mod tests {
                 &DynamicImage::ImageRgba8(image.clone()),
                 OutputFormat::Jpeg,
                 90,
+                &|| false,
             )
             .unwrap(),
             OutputFormat::Webp => encode_image(
                 &DynamicImage::ImageRgba8(image.clone()),
                 OutputFormat::Webp,
                 90,
+                &|| false,
             )
             .unwrap(),
             OutputFormat::Original => unreachable!(),

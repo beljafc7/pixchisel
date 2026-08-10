@@ -13,15 +13,18 @@ export interface ProcessingProgress {
 export type FileProcessingState =
   | { status: "ready" }
   | { status: "processing"; stage: ProcessingStage; percent: number }
+  | { status: "cancelling" }
   | { status: "written"; result: Extract<WriteImageResult, { status: "written" }> }
   | { status: "skipped"; result: Extract<WriteImageResult, { status: "skipped" }> }
+  | { status: "notSmaller"; result: Extract<WriteImageResult, { status: "notSmaller" }> }
   | { status: "failed"; error: WriteImageError }
   | { status: "cancelled" };
 
-export type TerminalFileState = Exclude<FileProcessingState, { status: "ready" | "processing" }>;
+export type TerminalFileState = Exclude<FileProcessingState, { status: "ready" | "processing" | "cancelling" }>;
 
 export interface CancellationToken {
   cancelled: boolean;
+  nativeId?: string;
 }
 
 export interface BatchSummary {
@@ -29,6 +32,7 @@ export interface BatchSummary {
   attempted: number;
   written: number;
   skipped: number;
+  notSmaller: number;
   failed: number;
   cancelled: number;
   originalBytes: number;
@@ -57,16 +61,24 @@ export async function runBoundedBatch(
       onState(path, { status: "processing", stage: "preparing", percent: 5 });
       try {
         const result = await process(path);
-        const state: TerminalFileState =
-          result.status === "written"
-            ? { status: "written", result }
+        const state: TerminalFileState = result.status === "written"
+          ? { status: "written", result }
+          : result.status === "notSmaller"
+            ? { status: "notSmaller", result }
             : { status: "skipped", result };
         results[index] = state;
         onState(path, state);
       } catch (error) {
+        const normalized = normalizeWriteError(error);
+        if (normalized.code === "cancelled") {
+          const state: TerminalFileState = { status: "cancelled" };
+          results[index] = state;
+          onState(path, state);
+          continue;
+        }
         const state: TerminalFileState = {
           status: "failed",
-          error: normalizeWriteError(error),
+          error: normalized,
         };
         results[index] = state;
         onState(path, state);
@@ -91,6 +103,7 @@ export async function runBoundedBatch(
 export function summarizeBatch(states: FileProcessingState[]): BatchSummary {
   let written = 0;
   let skipped = 0;
+  let notSmaller = 0;
   let failed = 0;
   let cancelled = 0;
   let originalBytes = 0;
@@ -106,6 +119,9 @@ export function summarizeBatch(states: FileProcessingState[]): BatchSummary {
       case "skipped":
         skipped += 1;
         break;
+      case "notSmaller":
+        notSmaller += 1;
+        break;
       case "failed":
         failed += 1;
         break;
@@ -114,6 +130,7 @@ export function summarizeBatch(states: FileProcessingState[]): BatchSummary {
         break;
       case "ready":
       case "processing":
+      case "cancelling":
         break;
     }
   }
@@ -123,9 +140,10 @@ export function summarizeBatch(states: FileProcessingState[]): BatchSummary {
     outputBytes < originalBytes ? "saved" : outputBytes > originalBytes ? "larger" : "unchanged";
   return {
     total: states.length,
-    attempted: written + skipped + failed,
+    attempted: written + skipped + notSmaller + failed,
     written,
     skipped,
+    notSmaller,
     failed,
     cancelled,
     originalBytes,
@@ -142,6 +160,7 @@ export function isTerminalState(state: FileProcessingState | undefined): boolean
     state &&
       (state.status === "written" ||
         state.status === "skipped" ||
+        state.status === "notSmaller" ||
         state.status === "failed" ||
         state.status === "cancelled"),
   );

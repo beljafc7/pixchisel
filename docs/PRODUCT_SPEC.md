@@ -83,10 +83,22 @@ preservation. Settings are intentionally not persisted between launches.
 ### Compress
 
 Compress preserves source format and offers Standard, Strong, and Maximum.
-JPEG and WebP map these to internal qualities 82, 65, and 45. Keep-original means
-original format, not original bytes. PNG remains lossless; because the current
-encoder has no effort control, all presets use the same safe PNG encoding rather
-than implying lossy quality differences.
+JPEG and WebP map these to internal qualities 82, 65, and 45. PNG remains
+lossless and maps the same choices to Oxipng effort presets 2, 4, and 6. These
+PNG choices affect optimization effort, never pixel values or color count. A Phase 2.7 JPEG
+benchmark retained these values: lowering Maximum further gave limited savings
+on smooth and graphic material while quality metrics and sharp-detail inspection
+continued to deteriorate. JPEG output uses the pure-Rust `jpeg-encoder` with
+4:4:4 sampling, progressive scans, and optimized Huffman tables after it measured
+about 3–23% smaller than the prior image-rs encoder at comparable PSNR on the
+generated benchmark corpus. Keep-original means original format, not original
+bytes.
+
+Compress has a native never-grow guarantee for JPEG, PNG, and WebP. PixChisel
+encodes and optimizes in memory first. If the candidate is not strictly smaller
+than the source, it does not create or replace a file and reports Already
+Optimized. Convert and Resize may legitimately produce larger output and are not
+subject to this rule.
 
 ### Resize
 
@@ -129,8 +141,10 @@ cannot honor.
   the interface.
 - Track ready, processing, written, skipped, failed, and cancelled states
   separately from import errors.
-- Cancellation stops starting files; already-active files finish their safe
-  native operation, and queued files become cancelled.
+- Cancellation stops starting files and signals active native transformations.
+  Active work stops at the next safe checkpoint; WebP encoding can stop through
+  libwebp's progress hook. Cancelled work never finalizes an output, and queued
+  files become cancelled.
 - Lock queue mutation, import, output, and transformation controls while a batch
   is active.
 - Allow failed and cancelled items to be retried without reprocessing written or
@@ -143,33 +157,36 @@ started after cancellation becomes Cancelled.
 
 ### Output
 
-- Let the user select an output directory.
-- Expose Create Copy and Replace Existing conflict behavior. Replace Existing
-  maps to the native `overwrite` policy.
+- Expose two save modes: Create Copies and Replace Originals.
+- Create Copies requires an explicitly selected output folder, leaves every
+  source untouched, flattens folder imports into that destination, and selects
+  the first available numbered filename when needed.
+- Replace Originals requires no output folder. Every item uses its own source
+  directory, including mixed-directory and recursively imported batches.
+- Display a concise warning that replacing originals cannot be undone.
 - Remove transferable image metadata from transformed output in the current V1
   pipeline and communicate that behavior directly.
 - Avoid partially written final files by writing safely and finalizing only after
   successful encoding.
-- Retain the selected directory and conflict policy only for the current session.
-- Default conflict behavior to create-copy.
-- Verify that the selected directory still exists and accepts a temporary write
-  before starting a batch.
+- Retain the selected directory and save mode only for the current session.
+- Default to Create Copies.
+- Verify a selected copy destination before starting a Create Copies batch.
 - Offer an Open Output Folder action after a destination has been selected.
 
-Output filenames retain the source stem. JPEG normalizes to `.jpg`, PNG to
-`.png`, and WebP to `.webp`; keep-original uses the detected source format and
-the same normalized extensions. Create-copy selects the first available numbered
-sibling such as `photo (1).webp`. Skip is a successful non-write result.
+Copy filenames retain the source stem. JPEG normalizes to `.jpg`, PNG to `.png`,
+and WebP to `.webp`; keep-original uses the detected source format. Create Copies
+selects the first available numbered sibling such as `photo (1).webp`.
 
-Overwrite never encodes directly over an existing destination. The complete
+Replace Originals never encodes directly over an existing destination. The complete
 encoded output is first written to a temporary file in the destination directory
 and safely finalized. If source and destination resolve to the same filename,
 the source remains intact until the replacement is complete and ready.
 
-The output folder remains an explicit selection and is never inferred from an
-imported folder. V1 flattens discovered images into that destination rather than
-preserving source hierarchy. The native `skip` policy remains for compatibility
-but is not exposed in the V1 interface.
+Convert plus Replace Originals writes the converted extension beside the source
+and removes the source only after the new file has been finalized. If that target
+already belongs to another file, the item fails with a conflict; PixChisel does
+not overwrite it or invent a numbered replacement. Compress and Resize preserve
+the detected format and replace the exact source path.
 
 ### Results
 
@@ -232,10 +249,10 @@ are explicitly outside V1.
 ## V1 success criteria
 
 - A user can process a mixed multi-file batch without network access.
-- Output follows the selected format, quality, resize, metadata, destination, and
-  conflict settings.
+- Output follows the selected format, quality, resize, metadata, and save settings.
 - Progress, cancellation, errors, and results remain understandable throughout.
-- Original files remain safe under every conflict policy.
+- Originals remain safe when creating copies and until replace-original output
+  has been fully transformed, written, synchronized, and finalized.
 - Packaged builds run on supported macOS and Windows versions.
 
 ## Alpha readiness

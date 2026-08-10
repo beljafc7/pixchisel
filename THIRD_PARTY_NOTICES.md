@@ -24,8 +24,10 @@ Key shipped components include:
 | Tauri / `@tauri-apps/api` | 2.11.5 / 2.11.1 | Desktop runtime and frontend/native bridge | MIT or Apache-2.0 |
 | Tauri dialog plugin / `@tauri-apps/plugin-dialog` | 2.7.2 | Native file and folder dialogs | MIT or Apache-2.0 |
 | React / React DOM / Scheduler | 19.2.8 / 19.2.8 / 0.27.0 | User interface runtime | MIT |
-| `image` / image-rs | 0.25.10 | JPEG, PNG, and WebP decoding and encoding | MIT or Apache-2.0 |
-| `webp` | 0.3.1 | Safe Rust interface for lossy WebP encoding | MIT or Apache-2.0 |
+| `image` / image-rs | 0.25.10 | Image decoding plus PNG and lossless WebP encoding | MIT or Apache-2.0 |
+| `jpeg-encoder` | 0.7.1 | Progressive JPEG encoding with optimized Huffman tables | (MIT or Apache-2.0) and IJG |
+| Oxipng | 10.2.0 | Lossless in-memory PNG optimization | MIT |
+| `libdeflater` / `libdeflate-sys` | 1.25.2 / 1.25.2 | Statically built compression backend used by Oxipng | Apache-2.0 |
 | `libwebp-sys` | 0.9.6 | Rust FFI/build integration for libwebp | MIT |
 | libwebp | Vendored by `libwebp-sys` 0.9.6 | Statically linked WebP codec implementation | BSD 3-Clause |
 | Serde / `serde_json` | 1.0.229 / 1.0.151 | Native command serialization | MIT or Apache-2.0 |
@@ -45,9 +47,13 @@ Before publishing any installer or application bundle, the release process must:
    attribution notices required by every distributed third-party component and
    transitive dependency;
 3. include the BSD notice required for the statically linked libwebp sources;
-4. preserve any copyright, attribution, and notice files required by the chosen
+4. include the IJG notice and the selected MIT or Apache-2.0 terms required by
+   `jpeg-encoder`;
+5. include the MIT notice for Oxipng and the Apache-2.0 notices required by
+   `libdeflater`, `libdeflate-sys`, and their statically built code;
+6. preserve any copyright, attribution, and notice files required by the chosen
    MIT/Apache-2.0 license options; and
-5. review target-specific macOS and Windows packages separately because their
+7. review target-specific macOS and Windows packages separately because their
    dependency sets may differ.
 
 This repository summary is not a substitute for the complete version-specific

@@ -4,37 +4,36 @@ import { createCompressSettings, createConvertSettings } from "../workflows/work
 import {
   METADATA_BEHAVIOR_MESSAGE,
   createDefaultOutputSettings,
-  createConflictPolicyUpdate,
+  createSaveModeUpdate,
   createWriteImageRequest,
   isFutureProcessingReady,
   parseWriteImageResult,
-  V1_CONFLICT_OPTIONS,
+  SAVE_MODE_OPTIONS,
 } from "./output";
 
 describe("output settings", () => {
-  it("defaults conflict handling to create copy", () => {
+  it("defaults to creating copies", () => {
     expect(createDefaultOutputSettings()).toEqual({
       outputDirectory: null,
-      conflictPolicy: "createCopy",
+      saveMode: "createCopies",
     });
   });
 
-  it("exposes only Create Copy and Replace Existing in the V1 selector", () => {
-    expect(V1_CONFLICT_OPTIONS).toEqual([
-      { value: "createCopy", label: "Create Copy" },
-      { value: "overwrite", label: "Replace Existing" },
+  it("exposes destination-oriented V1 save modes", () => {
+    expect(SAVE_MODE_OPTIONS).toEqual([
+      { value: "createCopies", label: "Create Copies" },
+      { value: "replaceOriginals", label: "Replace Originals" },
     ]);
-    expect(V1_CONFLICT_OPTIONS.some((option) => option.value === ("skip" as string))).toBe(false);
   });
 
   it("captures a conflict selection before the browser clears the event target", () => {
     let event: { currentTarget: { value: string } | null } = {
-      currentTarget: { value: "overwrite" },
+      currentTarget: { value: "replaceOriginals" },
     };
-    const update = createConflictPolicyUpdate(event.currentTarget!.value);
+    const update = createSaveModeUpdate(event.currentTarget!.value);
     event.currentTarget = null;
 
-    expect(update(createDefaultOutputSettings()).conflictPolicy).toBe("overwrite");
+    expect(update(createDefaultOutputSettings()).saveMode).toBe("replaceOriginals");
   });
 
   it("requires an output folder for future processing readiness", () => {
@@ -53,31 +52,46 @@ describe("output settings", () => {
         outputDirectory: "/images/output",
       }),
     ).toBe(false);
+    expect(isFutureProcessingReady(1, settings, {
+      ...output,
+      saveMode: "replaceOriginals",
+    })).toBe(true);
   });
 
-  it("serializes the native write request shape", () => {
+  it("serializes directory and replace-original destination shapes", () => {
     const settings = createDefaultBatchSettings();
     expect(
       createWriteImageRequest("/images/source.png", settings, {
         outputDirectory: "/images/output",
-        conflictPolicy: "skip",
-      }),
+        saveMode: "createCopies",
+      }, "compress"),
     ).toEqual({
       sourcePath: "/images/source.png",
-      outputDirectory: "/images/output",
       settings,
-      conflictPolicy: "skip",
+      destination: { mode: "directory", path: "/images/output" },
+      operation: "compress",
     });
+    expect(createWriteImageRequest("/images/source.png", settings, {
+      outputDirectory: null,
+      saveMode: "replaceOriginals",
+    }, "resize")).toEqual({
+      sourcePath: "/images/source.png",
+      settings,
+      destination: { mode: "replaceOriginal" },
+      operation: "resize",
+    });
+    expect(createWriteImageRequest("/images/source.png", settings, {
+      outputDirectory: null,
+      saveMode: "createCopies",
+    }, "compress")).toBeNull();
   });
 
-  it("preserves every conflict policy through workflow-generated requests", () => {
-    for (const conflictPolicy of ["createCopy", "overwrite", "skip"] as const) {
-      for (const settings of [createCompressSettings("strong"), createConvertSettings("webp")]) {
-        expect(createWriteImageRequest("/images/photo.jpg", settings, {
-          outputDirectory: "/output",
-          conflictPolicy,
-        })).toMatchObject({ conflictPolicy, settings });
-      }
+  it("preserves destination shapes through every workflow", () => {
+    for (const settings of [createCompressSettings("strong"), createConvertSettings("webp")]) {
+      expect(createWriteImageRequest("/images/photo.jpg", settings, {
+        outputDirectory: null,
+        saveMode: "replaceOriginals",
+      }, "convert")).toMatchObject({ destination: { mode: "replaceOriginal" }, settings, operation: "convert" });
     }
   });
 
@@ -91,6 +105,16 @@ describe("output settings", () => {
       status: "skipped", sourcePath: "/input/photo.jpg", outputPath: "/output/photo.jpg", outputFormat: "jpeg",
     })).toEqual({
       status: "skipped", sourcePath: "/input/photo.jpg", outputPath: "/output/photo.jpg", outputFormat: "jpeg",
+    });
+  });
+
+  it("parses already-optimized results without output metadata", () => {
+    expect(parseWriteImageResult({
+      status: "notSmaller", sourcePath: "/input/photo.png", outputFormat: "png",
+      originalSizeBytes: 100, candidateSizeBytes: 120,
+    })).toEqual({
+      status: "notSmaller", sourcePath: "/input/photo.png", outputFormat: "png",
+      originalSizeBytes: 100, candidateSizeBytes: 120,
     });
   });
 
