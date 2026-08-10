@@ -403,6 +403,20 @@ required native capabilities and granted the narrowest practical permissions.
   locally for diagnosis.
 - The core workflow must make no network requests.
 
+## Release and license boundary
+
+The private repository contains proprietary PixChisel source, original artwork,
+branding, and documentation alongside third-party dependencies under their own
+licenses. A dependency's open-source license applies only to that dependency and
+does not license the PixChisel application or repository.
+
+Intended public artifacts are compiled macOS or Windows applications/installers,
+the PixChisel license, and a target-specific third-party notice bundle with all
+required license texts and attributions. Source code is outside the public
+distribution. Release preparation must derive the dependency inventory from the
+locked production graph for each target, including statically linked libwebp,
+rather than treating a hand-maintained summary as exhaustive.
+
 ## Testing strategy
 
 - Frontend: component tests for interaction and state transitions when the first

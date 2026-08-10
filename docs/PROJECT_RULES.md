@@ -62,6 +62,26 @@ Paths and user input must be validated in Rust before filesystem work begins.
 - Versioning scripts do not create Git tags or releases. Source-control and
   publishing actions remain explicit, separate release steps.
 
+## Licensing and distribution
+
+- PixChisel's application license model is **Proprietary Freeware**.
+- Free use: yes.
+- Personal, educational, professional, and business/commercial use of the
+  application as a tool: yes.
+- Open source: no.
+- Modified redistribution, resale, rebranding, white-labeling, and trademark
+  rights: not granted.
+- The canonical PixChisel source repository is intended to remain private.
+- Public distribution is binary-only and comes from official PixChisel sources.
+  A release includes the compiled application or installer, the PixChisel
+  license, and all required third-party notices and license texts. Source code is
+  not part of the intended public distribution.
+- Third-party code retains its original license. Never present a dependency's
+  MIT, Apache, BSD, or other license as the PixChisel application license.
+- Final public-release terms and the complete target-specific dependency notice
+  bundle must be reviewed before broad distribution. Project documentation
+  records licensing intent and does not claim legal review.
+
 ## Branding assets
 
 - `assets/branding/pixchisel-icon.png` is the canonical square application icon

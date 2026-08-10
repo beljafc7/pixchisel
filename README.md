@@ -94,4 +94,8 @@ release. Use `npm run version:check` to verify alignment, or
 
 ## License
 
-A license has not yet been selected. Choose one before the first public release.
+PixChisel is free to download and use for personal and commercial work.
+PixChisel is proprietary software; source-code reuse, modified redistribution,
+resale, rebranding, and trademark rights are not granted. See [LICENSE](LICENSE)
+for details and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency
+attributions and release-notice requirements.

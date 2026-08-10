@@ -200,6 +200,20 @@ folder.
   default.
 - Dependencies must not introduce hidden network behavior.
 
+## Licensing model
+
+PixChisel is proprietary freeware. People and businesses may download and use
+the application free of charge for personal, educational, professional, and
+commercial work, including processing images for clients or internal business
+use. PixChisel is not open source. The application license does not grant rights
+to reuse source code, redistribute modified builds, resell or rebrand the
+software, create derivative distributions, or use PixChisel branding.
+
+V1 installers are distributed only through official PixChisel sources. Public
+packages contain compiled application binaries, the PixChisel license, and all
+required third-party notices and license texts; they do not contain PixChisel
+source code.
+
 ## Experience requirements
 
 - Use one primary workspace rather than dashboard navigation.
