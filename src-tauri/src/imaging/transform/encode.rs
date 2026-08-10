@@ -86,10 +86,7 @@ fn encode_webp(
     if should_cancel() {
         return Err(TransformError::Cancelled);
     }
-    let mut config = libwebp_sys::WebPConfig::new().map_err(|_| TransformError::EncodeFailed)?;
-    config.lossless = 0;
-    config.alpha_compression = 1;
-    config.quality = quality as f32;
+    let config = webp_config(quality)?;
     if unsafe { libwebp_sys::WebPValidateConfig(&config) } == 0 {
         return Err(TransformError::EncodeFailed);
     }
@@ -172,6 +169,15 @@ fn encode_webp(
         };
     }
     Ok(context.output)
+}
+
+fn webp_config(quality: u8) -> Result<libwebp_sys::WebPConfig, TransformError> {
+    let mut config = libwebp_sys::WebPConfig::new().map_err(|_| TransformError::EncodeFailed)?;
+    config.lossless = 0;
+    config.alpha_compression = 1;
+    config.quality = quality as f32;
+    config.method = 2;
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -314,5 +320,14 @@ mod tests {
             encode_webp(&image, 82, &|| true).unwrap_err(),
             TransformError::Cancelled
         );
+    }
+
+    #[test]
+    fn webp_uses_the_benchmarked_fast_method_without_changing_quality() {
+        let config = webp_config(92).unwrap();
+        assert_eq!(config.method, 2);
+        assert_eq!(config.quality, 92.0);
+        assert_eq!(config.lossless, 0);
+        assert_eq!(config.alpha_compression, 1);
     }
 }

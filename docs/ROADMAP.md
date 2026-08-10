@@ -152,6 +152,17 @@ performed.
 - Measure cancellation latency on representative large JPEG-to-WebP batches in
   release builds. **Implementation complete; desktop timing QA remains.**
 
+### Phase 2.7.3 — WebP conversion performance
+
+- Benchmark the seventeen-image large JPEG corpus in debug and release builds.
+  **Complete.**
+- Optimize libwebp in development builds without changing output quality.
+  **Complete.**
+- Select a faster evidence-backed libwebp effort method. **Complete; method 2
+  halves release time with a 4.2% size cost and negligible measured PSNR change.**
+- Keep two concurrent full-image jobs until peak-memory profiling justifies a
+  higher cross-platform limit. **Retained for safety.**
+
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.
 

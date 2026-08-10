@@ -445,6 +445,14 @@ WebP encoder does not support lossy quality settings. Phase 2.1 therefore adds
 `libwebp-sys` statically compiles the upstream BSD-licensed libwebp sources for
 lossy WebP output. PixChisel uses the native picture API directly so it can
 install libwebp's cancellation progress hook. Users do not install a binary or shared library.
+WebP uses libwebp method 2. A release benchmark on seventeen 15–24 megapixel
+JPEGs at quality 92 measured 6.7 seconds and 29.35 MB, compared with 13.1
+seconds and 28.17 MB for method 4. On ten matched images, average PSNR changed
+from 46.90 to 46.79 dB. The approximately 2× speed improvement was selected in
+exchange for 4.2% more bytes and a negligible measured fidelity difference.
+The dev profile optimizes only `libwebp-sys`; this reduced the same debug corpus
+from an extrapolated multi-minute run to 40.9 seconds without changing release
+optimization or application quality settings.
 The build requires the normal C toolchain available to Rust desktop builds on
 macOS and Windows, and increases compile time and binary size compared with the
 pure-Rust lossless encoder.
