@@ -72,9 +72,12 @@ Overlapping folders and direct-file duplicates resolve to one path-based item.
 
 ### Convert
 
-Convert exposes JPEG, PNG, and WebP targets only. It applies no resize and uses
-internal quality 92 for JPEG and WebP to prioritize visual fidelity. PNG is
-lossless. Transparent pixels converted to JPEG use a white background.
+Convert exposes JPEG, PNG, and WebP targets only. It applies no resize. JPEG
+uses internal quality 92, PNG is lossless, and WebP uses the benchmarked internal
+quality 75. The WebP value reduced a representative seventeen-image batch from
+29.35 MB at quality 92 to 11.13 MB while remaining visually comparable to the
+10.03 MB reference output. Numeric quality remains an internal implementation
+detail. Transparent pixels converted to JPEG use a white background.
 
 Transformation settings are batch-level and session-only. The Phase 1.4 defaults
 are keep original format, quality 82, no resize, no upscaling, and metadata

@@ -162,6 +162,9 @@ performed.
   halves release time with a 4.2% size cost and negligible measured PSNR change.**
 - Keep two concurrent full-image jobs until peak-memory profiling justifies a
   higher cross-platform limit. **Retained for safety.**
+- Calibrate Convert-to-WebP output weight against the same corpus and visual
+  reference. **Complete; internal quality 75 selected at 11.13 MB, 43.41 dB
+  PSNR, and 0.9764 SSIM.**
 
 Exit condition: one image can be transformed locally with predictable output and
 source-file safety.

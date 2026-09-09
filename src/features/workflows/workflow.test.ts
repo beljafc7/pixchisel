@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONVERSION_QUALITY,
   RESIZE_QUALITY,
   compressionQuality,
+  conversionQuality,
   createCompressSettings,
   createConvertSettings,
   createResizeSettings,
@@ -21,11 +21,12 @@ describe("workflow settings adapters", () => {
     }
   });
 
-  it("creates high-quality conversion settings with no resize", () => {
+  it("uses the benchmarked per-format conversion quality with no resize", () => {
+    expect(conversionQuality).toEqual({ jpeg: 92, png: 92, webp: 75 });
     for (const format of ["jpeg", "png", "webp"] as const) {
       expect(createConvertSettings(format)).toMatchObject({
         outputFormat: format,
-        quality: CONVERSION_QUALITY,
+        quality: conversionQuality[format],
         resize: { mode: "none" },
         allowUpscaling: false,
       });

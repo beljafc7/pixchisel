@@ -44,9 +44,10 @@ encoding, safe writing, cancellation, and results remain one shared engine.
 
 Compress preserves format and maps Standard/Strong/Maximum to lossy JPEG/WebP
 qualities 82/65/45 and lossless Oxipng effort presets 2/4/6. Convert targets a
-selected format at internal quality 92 with resize disabled. Resize preserves
-format at internal quality 92. PNG presets alter compression search effort, not
-pixels, alpha, or palette size.
+selected format with resize disabled: JPEG and PNG use the existing internal
+value 92, while WebP uses the corpus-selected value 75. Resize preserves format
+at internal quality 92. PNG presets alter compression search effort, not pixels,
+alpha, or palette size.
 
 ## Version metadata
 
@@ -453,6 +454,14 @@ exchange for 4.2% more bytes and a negligible measured fidelity difference.
 The dev profile optimizes only `libwebp-sys`; this reduced the same debug corpus
 from an extrapolated multi-minute run to 40.9 seconds without changing release
 optimization or application quality settings.
+
+A follow-up quality matrix measured WebP qualities 92/85/82/78/75/70 on the
+same seventeen JPEGs. Quality 75 produced 11.13 MB in 5.14 seconds at average
+43.41 dB PSNR and 0.9764 SSIM. The external comparison output was 10.03 MB at
+43.48 dB and 0.9773 SSIM. Quality 75 was therefore selected for Convert-to-WebP:
+it stays visually and objectively comparable while avoiding quality 70's lower
+fidelity and quality 78's 12.54 MB size. JPEG conversion and Resize remain at
+quality 92.
 The build requires the normal C toolchain available to Rust desktop builds on
 macOS and Windows, and increases compile time and binary size compared with the
 pure-Rust lossless encoder.

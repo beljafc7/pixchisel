@@ -9,7 +9,11 @@ export type WorkflowMode = "compress" | "convert" | "resize";
 export type CompressionPreset = "standard" | "strong" | "maximum";
 export type ConversionFormat = Exclude<OutputFormat, "original">;
 
-export const CONVERSION_QUALITY = 92;
+export const conversionQuality: Record<ConversionFormat, number> = {
+  jpeg: 92,
+  png: 92,
+  webp: 75,
+};
 export const RESIZE_QUALITY = 92;
 
 export const compressionQuality: Record<CompressionPreset, number> = {
@@ -40,7 +44,7 @@ export function createConvertSettings(format: ConversionFormat): BatchSettings {
   return {
     ...createDefaultBatchSettings(),
     outputFormat: format,
-    quality: CONVERSION_QUALITY,
+    quality: conversionQuality[format],
   };
 }
 
