@@ -9,6 +9,7 @@ import { useImageImportQueue } from "./useImageImportQueue";
 import { useNativeFileDrop } from "./useNativeFileDrop";
 import { isTerminalState, type FileProcessingState } from "../image-processing/batch";
 import { shouldConfirmWorkflowChange, workflowCopy, type WorkflowMode } from "../workflows/workflow";
+import { WorkflowSelector } from "../workflows/WorkflowSelector";
 
 const imageFilters = [
   {
@@ -17,7 +18,7 @@ const imageFilters = [
   },
 ];
 
-export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: WorkflowMode; onChangeWorkflow: () => void }) {
+export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: WorkflowMode; onChangeWorkflow: (mode: WorkflowMode) => void }) {
   const [processingStates, setProcessingStates] = useState<Record<string, FileProcessingState>>({});
   const [isBatchRunning, setIsBatchRunning] = useState(false);
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
@@ -98,95 +99,86 @@ export function ImageImportQueue({ workflow, onChangeWorkflow }: { workflow: Wor
     requestAnimationFrame(() => selectImagesButton.current?.focus());
   }
 
-  function changeWorkflow() {
+  function changeWorkflow(nextWorkflow: WorkflowMode) {
+    if (nextWorkflow === workflow) return;
     if (
       shouldConfirmWorkflowChange(queue.length) &&
       !window.confirm("Changing action will clear the current image queue.")
     ) return;
     clearQueueAndState();
-    onChangeWorkflow();
+    onChangeWorkflow(nextWorkflow);
   }
 
   const isEmpty = queue.length === 0;
   const totalSize = validQueueSize(queue);
 
+  const copy = workflowCopy[workflow];
+
   return (
-    <section className={`import-workspace${isEmpty ? " import-workspace--empty" : ""}`} aria-label={isEmpty ? "Import images" : undefined} aria-labelledby={isEmpty ? undefined : "queue-title"}>
-      <div className="workflow-workspace__heading">
-        <button className="text-button" type="button" onClick={changeWorkflow} disabled={isBatchRunning}>← Change Action</button>
-        <strong>{workflowCopy[workflow].title}</strong>
+    <section className="import-workspace" aria-label="PixChisel workspace">
+      <div className="workspace-main">
+        <header className="workspace-hero">
+          <h1><span>{copy.headline}</span><strong>{copy.accent}</strong></h1>
+          <p>{copy.intro}</p>
+        </header>
+
+        {isEmpty ? (
+          <div className="empty-workspace">
+            <ImportDropZone
+              isActive={isDragActive}
+              isImporting={isImporting}
+              disabled={isBatchRunning}
+              onSelect={selectImages}
+              onSelectFolder={selectFolder}
+              buttonRef={selectImagesButton}
+            />
+            {importError && <p className="workspace-error">{importError}</p>}
+            {isScanning && <p className="local-note" role="status">Scanning folder…</p>}
+          </div>
+        ) : (
+          <div className="queue-workspace">
+            <div className="queue-header">
+              <div>
+                <p className="section-label">Image queue</p>
+                <h2 id="queue-title">{copy.title}</h2>
+              </div>
+              <div className="queue-header__actions">
+                <ImportDropZone
+                  compact
+                  isActive={isDragActive}
+                  isImporting={isImporting}
+                  disabled={isBatchRunning}
+                  onSelect={selectImages}
+                  onSelectFolder={selectFolder}
+                  buttonRef={selectImagesButton}
+                />
+                <button className="text-button" type="button" onClick={clearQueueAndState} disabled={isImporting || isBatchRunning}>Clear All</button>
+              </div>
+            </div>
+            {importError && <p className="workspace-error">{importError}</p>}
+            <ImageQueueList items={queue} processingStates={processingStates} onRemove={removeQueueItemAndState} disabled={isBatchRunning} />
+            <footer className="queue-summary" aria-live="polite">
+              <span>{queue.length} {queue.length === 1 ? "file" : "files"} · {formatFileSize(totalSize)}</span>
+              {isScanning ? <span>Scanning folder…</span> : isImporting && <span>Adding images…</span>}
+            </footer>
+          </div>
+        )}
       </div>
-      {isEmpty ? (
-        <>
-        <ImportDropZone
-          isActive={isDragActive}
-          isImporting={isImporting}
-          disabled={isBatchRunning}
-          onSelect={selectImages}
-          onSelectFolder={selectFolder}
-          buttonRef={selectImagesButton}
+
+      <aside className="workspace-sidebar">
+        <WorkflowSelector activeMode={workflow} disabled={isBatchRunning} onSelect={changeWorkflow} />
+        <TransformationOptions
+          workflow={workflow}
+          readyPaths={queue.filter((item) => item.status === "ready").map((item) => item.path)}
+          queuePaths={queue.map((item) => item.id)}
+          processingStates={processingStates}
+          onBatchStart={startBatchState}
+          onItemState={updateItemState}
+          onRunningChange={setIsBatchRunning}
+          onResultsInvalidated={() => setProcessingStates({})}
+          workspaceResetVersion={workspaceResetVersion}
         />
-        {importError && <p className="workspace-error">{importError}</p>}
-        {isScanning && <p className="local-note" role="status">Scanning folder…</p>}
-        <p className="local-note">Processed locally. Nothing is uploaded.</p>
-        </>
-      ) : (
-        <>
-      <div className="queue-header">
-        <div>
-          <p className="welcome__eyebrow">Image queue</p>
-          <h1 id="queue-title">{workflowCopy[workflow].title}</h1>
-        </div>
-        <div className="queue-header__actions">
-          <ImportDropZone
-            compact
-            isActive={isDragActive}
-            isImporting={isImporting}
-            disabled={isBatchRunning}
-            onSelect={selectImages}
-            onSelectFolder={selectFolder}
-            buttonRef={selectImagesButton}
-          />
-          <button
-            className="text-button"
-            type="button"
-            onClick={clearQueueAndState}
-            disabled={isImporting || isBatchRunning}
-          >
-            Clear All
-          </button>
-        </div>
-      </div>
-
-      {importError && <p className="workspace-error">{importError}</p>}
-      <ImageQueueList
-        items={queue}
-        processingStates={processingStates}
-        onRemove={removeQueueItemAndState}
-        disabled={isBatchRunning}
-      />
-
-      <footer className="queue-summary" aria-live="polite">
-        <span>
-          {queue.length} {queue.length === 1 ? "file" : "files"} • {formatFileSize(totalSize)}
-        </span>
-        {isScanning ? <span>Scanning folder…</span> : isImporting && <span>Adding images…</span>}
-      </footer>
-        </>
-      )}
-      <div className="options-container" hidden={isEmpty}>
-      <TransformationOptions
-        workflow={workflow}
-        readyPaths={queue.filter((item) => item.status === "ready").map((item) => item.path)}
-        queuePaths={queue.map((item) => item.id)}
-        processingStates={processingStates}
-        onBatchStart={startBatchState}
-        onItemState={updateItemState}
-        onRunningChange={setIsBatchRunning}
-        onResultsInvalidated={() => setProcessingStates({})}
-        workspaceResetVersion={workspaceResetVersion}
-      />
-      </div>
+      </aside>
     </section>
   );
 }

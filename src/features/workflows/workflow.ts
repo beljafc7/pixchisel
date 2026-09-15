@@ -66,10 +66,10 @@ export function createResizeSettings(resize: ResizeWorkflowSettings): BatchSetti
   };
 }
 
-export const workflowCopy: Record<WorkflowMode, { title: string; description: string; resultVerb: string }> = {
-  compress: { title: "Compress Images", description: "Make images smaller", resultVerb: "compressed" },
-  convert: { title: "Convert Images", description: "Change image format", resultVerb: "converted" },
-  resize: { title: "Resize Images", description: "Change image dimensions", resultVerb: "resized" },
+export const workflowCopy: Record<WorkflowMode, { title: string; headline: string; accent: string; intro: string; description: string; resultVerb: string }> = {
+  compress: { title: "Compress Images", headline: "Smaller images.", accent: "Same great quality.", intro: "Compress images without visible quality loss. Everything stays on your device.", description: "Reduce size", resultVerb: "compressed" },
+  convert: { title: "Convert Images", headline: "Convert images.", accent: "Any format, instantly.", intro: "Change image formats in batch. PNG, JPEG, WebP — your choice.", description: "Change format", resultVerb: "converted" },
+  resize: { title: "Resize Images", headline: "Resize images.", accent: "Perfect dimensions.", intro: "Resize by width, height, fit, or percentage. Non-destructive and fast.", description: "Dimensions", resultVerb: "resized" },
 };
 
 export function shouldConfirmWorkflowChange(queueLength: number): boolean {

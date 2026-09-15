@@ -46,6 +46,8 @@ import {
   type ConversionFormat,
   type WorkflowMode,
 } from "../workflows/workflow";
+import settingsIcon from "../../assets/settings.svg";
+import privacyShieldIcon from "../../assets/privacy-shield.svg";
 
 interface TransformationOptionsProps {
   workflow: WorkflowMode;
@@ -124,6 +126,12 @@ export function TransformationOptions({
     () => summarizeBatch(lastBatchPaths.map((path) => processingStates[path] ?? { status: "ready" })),
     [lastBatchPaths, processingStates],
   );
+  const batchComplete =
+    !isRunning &&
+    lastBatchPaths.length > 0 &&
+    completedCount === lastBatchPaths.length &&
+    summary.failed === 0 &&
+    summary.cancelled === 0;
 
   useEffect(() => {
     setLastBatchPaths((paths) => retainQueuedBatchPaths(paths, queuePaths));
@@ -264,11 +272,8 @@ export function TransformationOptions({
   return (
     <section className="options-panel" aria-labelledby="options-title">
       <div className="options-panel__heading">
-        <div>
-          <p className="welcome__eyebrow">Batch settings</p>
-          <h2 id="options-title">{workflowCopy[workflow].title}</h2>
-        </div>
-        <span className="options-panel__scope">Applies to all ready images</span>
+        <img src={settingsIcon} alt="" />
+        <h2 id="options-title">Export settings</h2>
       </div>
 
       <div className="options-grid">
@@ -293,7 +298,7 @@ export function TransformationOptions({
         </fieldset>}
 
         {workflow === "convert" && <fieldset className="option-group option-group--wide">
-          <legend>Convert to</legend>
+          <legend>Format</legend>
           <div className="segmented-control segmented-control--three">
             {conversionFormats.map((format) => <label key={format.value}>
               <input type="radio" name="conversion-format" value={format.value} checked={conversionFormat === format.value} disabled={isRunning} onChange={() => { invalidateResults(); setConversionFormat(format.value); }} />
@@ -304,7 +309,7 @@ export function TransformationOptions({
         </fieldset>}
 
         {workflow === "resize" && <fieldset className="option-group option-group--wide">
-          <legend>Resize</legend>
+          <legend>Resize by</legend>
           <div className="resize-row">
             <select
               aria-label="Resize mode"
@@ -368,12 +373,17 @@ export function TransformationOptions({
         <BatchResults summary={summary} workflow={workflow} />
       )}
 
+      <div className="privacy-note">
+        <img src={privacyShieldIcon} alt="" />
+        <span><strong>Processed locally</strong>Your images stay private and never get uploaded.</span>
+      </div>
+
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {statusMessage}
       </p>
 
-      <div className="options-panel__action">
-        <span>
+      <div className={`options-panel__action${batchComplete ? " options-panel__action--complete" : ""}`}>
+        <span className="action-hint">
           {isRunning
             ? isCancelling ? "Stopping active files safely" : "Active files will finish safely"
             : !settingsAreValid
@@ -400,12 +410,14 @@ export function TransformationOptions({
           )}
           <button
             ref={primaryAction}
-            className="primary-button"
+            className={`primary-button${batchComplete ? " primary-button--complete" : ""}`}
             type="button"
-            disabled={!futureProcessingReady || isRunning}
+            disabled={!futureProcessingReady || isRunning || batchComplete}
             onClick={() => void startBatch(readyPaths, true)}
           >
-            {isRunning
+            {batchComplete
+              ? `✓ Done — ${completedCount} ${completedCount === 1 ? "image" : "images"} processed`
+              : isRunning
               ? `Chiseling ${completedCount} of ${lastBatchPaths.length}…`
               : `Chisel ${readyImageCount} ${readyImageCount === 1 ? "Image" : "Images"}`}
           </button>

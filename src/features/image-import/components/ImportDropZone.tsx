@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import uploadIcon from "../../../assets/upload.svg";
 
 interface ImportDropZoneProps {
   compact?: boolean;
@@ -24,10 +25,10 @@ export function ImportDropZone({
       {!compact && (
         <>
           <div className="drop-zone__icon" aria-hidden="true">
-            +
+            <img src={uploadIcon} alt="" />
           </div>
-          <h1>Drop images or folders here</h1>
-          <p>JPG, PNG, and WebP</p>
+          <h1>Drop images here</h1>
+          <p>or click to browse • PNG, JPG, WebP</p>
         </>
       )}
       <div className="drop-zone__actions">
@@ -38,7 +39,11 @@ export function ImportDropZone({
           {compact ? "Add Folder" : "Select Folder"}
         </button>
       </div>
-      {isActive && <span className="drop-zone__overlay">Drop images or folders to add</span>}
+      {isActive && (
+        <span className={`drop-zone__overlay${compact ? " drop-zone__overlay--workspace" : ""}`}>
+          Drop images or folders to add
+        </span>
+      )}
     </div>
   );
 }

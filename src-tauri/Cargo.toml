@@ -1,6 +1,6 @@
 [package]
 name = "pixchisel"
-version = "0.1.0"
+version = "0.3.0"
 description = "A private, local image conversion and optimization utility"
 edition = "2021"
 
