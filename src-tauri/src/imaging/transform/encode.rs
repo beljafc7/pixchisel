@@ -1,12 +1,15 @@
 use std::io::Cursor;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+use color_quant::NeuQuant;
 use image::{codecs::png::PngEncoder, DynamicImage, ExtendedColorType, ImageEncoder};
 use jpeg_encoder::{ColorType as JpegColorType, Encoder as JpegEncoder, SamplingFactor};
 
 use super::{settings::OutputFormat, TransformError};
 
 const WEBP_MAX_DIMENSION: u32 = 16_383;
+const MAXIMUM_PNG_COLORS: usize = 256;
+const MAXIMUM_PNG_SAMPLE_FACTOR: i32 = 10;
 
 pub fn encode_image(
     image: &DynamicImage,
@@ -16,7 +19,7 @@ pub fn encode_image(
 ) -> Result<Vec<u8>, TransformError> {
     match format {
         OutputFormat::Jpeg => encode_jpeg(image, quality),
-        OutputFormat::Png => encode_png(image, quality),
+        OutputFormat::Png => encode_png(image, quality, should_cancel),
         OutputFormat::Webp => encode_webp(image, quality, should_cancel),
         OutputFormat::Original => Err(TransformError::UnsupportedOutputFormat),
     }
@@ -46,31 +49,86 @@ fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, TransformEr
     Ok(bytes)
 }
 
-fn encode_png(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, TransformError> {
+fn encode_png(
+    image: &DynamicImage,
+    quality: u8,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, TransformError> {
     let rgba = image.to_rgba8();
-    let mut bytes = Cursor::new(Vec::new());
-    PngEncoder::new(&mut bytes)
-        .write_image(
-            rgba.as_raw(),
-            image.width(),
-            image.height(),
-            ExtendedColorType::Rgba8,
-        )
-        .map_err(|_| TransformError::EncodeFailed)?;
-    let encoded = bytes.into_inner();
-    let preset = png_optimization_preset(quality);
-    let mut options = oxipng::Options::from_preset(preset);
+    let encoded = if quality >= 82 {
+        encode_lossless_png(&rgba, image.width(), image.height())?
+    } else {
+        encode_indexed_png(&rgba, image.width(), image.height(), should_cancel)?
+    };
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
+    let mut options = oxipng::Options::from_preset(2);
     options.strip = oxipng::StripChunks::All;
     options.optimize_alpha = false;
     oxipng::optimize_from_memory(&encoded, &options).map_err(|_| TransformError::EncodeFailed)
 }
 
-fn png_optimization_preset(quality: u8) -> u8 {
-    match quality {
-        82..=u8::MAX => 2,
-        60..=81 => 4,
-        _ => 6,
+fn encode_lossless_png(
+    rgba: &image::RgbaImage,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, TransformError> {
+    let mut bytes = Cursor::new(Vec::new());
+    PngEncoder::new(&mut bytes)
+        .write_image(rgba.as_raw(), width, height, ExtendedColorType::Rgba8)
+        .map_err(|_| TransformError::EncodeFailed)?;
+    Ok(bytes.into_inner())
+}
+
+fn encode_indexed_png(
+    rgba: &image::RgbaImage,
+    width: u32,
+    height: u32,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, TransformError> {
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
     }
+
+    let quantizer = NeuQuant::new(MAXIMUM_PNG_SAMPLE_FACTOR, MAXIMUM_PNG_COLORS, rgba.as_raw());
+    if should_cancel() {
+        return Err(TransformError::Cancelled);
+    }
+
+    let rgba_palette = quantizer.color_map_rgba();
+    let rgb_palette = rgba_palette
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|color| color[..3].iter().copied())
+        .collect::<Vec<_>>();
+    let alpha_palette = quantizer.color_map_alpha();
+    let mut indices = Vec::with_capacity((u64::from(width) * u64::from(height)) as usize);
+    for (index, pixel) in rgba.as_raw().as_chunks::<4>().0.iter().enumerate() {
+        if index % 16_384 == 0 && should_cancel() {
+            return Err(TransformError::Cancelled);
+        }
+        indices.push(quantizer.index_of(pixel) as u8);
+    }
+
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut bytes, width, height);
+        encoder.set_color(png::ColorType::Indexed);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_palette(rgb_palette);
+        if alpha_palette.iter().any(|alpha| *alpha != u8::MAX) {
+            encoder.set_trns(alpha_palette);
+        }
+        let mut writer = encoder
+            .write_header()
+            .map_err(|_| TransformError::EncodeFailed)?;
+        writer
+            .write_image_data(&indices)
+            .map_err(|_| TransformError::EncodeFailed)?;
+    }
+    Ok(bytes)
 }
 
 fn encode_webp(
@@ -227,22 +285,18 @@ mod tests {
             let detail = x.wrapping_mul(37).wrapping_add(y.wrapping_mul(73)) as u8;
             Rgba([detail, detail.rotate_left(2), detail.rotate_left(5), 255])
         }));
-        let outputs = [82, 65, 45].map(|quality| encode_jpeg(&image, quality).unwrap());
+        let outputs = [82, 45].map(|quality| encode_jpeg(&image, quality).unwrap());
         for output in &outputs {
             let decoded =
                 image::load_from_memory_with_format(output, image::ImageFormat::Jpeg).unwrap();
             assert_eq!((decoded.width(), decoded.height()), (256, 192));
         }
         assert!(outputs[0].len() > outputs[1].len());
-        assert!(outputs[1].len() > outputs[2].len());
-        assert!(outputs[0].len() - outputs[2].len() > outputs[0].len() / 10);
+        assert!(outputs[0].len() - outputs[1].len() > outputs[0].len() / 10);
     }
 
     #[test]
-    fn png_presets_are_distinct_and_preserve_every_alpha_level_exactly() {
-        assert_eq!(png_optimization_preset(82), 2);
-        assert_eq!(png_optimization_preset(65), 4);
-        assert_eq!(png_optimization_preset(45), 6);
+    fn standard_png_preserves_every_alpha_level_exactly() {
         let source = RgbaImage::from_fn(96, 64, |x, y| {
             let alpha = match x % 4 {
                 0 => 0,
@@ -253,18 +307,15 @@ mod tests {
             Rgba([(x * 7) as u8, (y * 11) as u8, ((x + y) * 3) as u8, alpha])
         });
         let image = DynamicImage::ImageRgba8(source.clone());
-        for quality in [82, 65, 45] {
-            let encoded = encode_png(&image, quality).unwrap();
-            let decoded = image::load_from_memory_with_format(&encoded, image::ImageFormat::Png)
-                .unwrap()
-                .to_rgba8();
-            assert_eq!(decoded.dimensions(), source.dimensions());
-            assert_eq!(decoded, source);
-        }
+        let encoded = encode_png(&image, 82, &|| false).unwrap();
+        let decoded = image::load_from_memory_with_format(&encoded, image::ImageFormat::Png)
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(decoded, source);
     }
 
     #[test]
-    fn png_optimization_preserves_representative_opaque_content_exactly() {
+    fn standard_png_preserves_representative_opaque_content_exactly() {
         let cases = [
             RgbaImage::from_fn(128, 96, |x, y| {
                 let band = if (x / 16 + y / 16) % 2 == 0 { 24 } else { 232 };
@@ -290,16 +341,61 @@ mod tests {
 
         for source in cases {
             let image = DynamicImage::ImageRgba8(source.clone());
-            for quality in [82, 65, 45] {
-                let encoded = encode_png(&image, quality).unwrap();
-                let decoded =
-                    image::load_from_memory_with_format(&encoded, image::ImageFormat::Png)
-                        .unwrap()
-                        .to_rgba8();
-                assert_eq!(decoded.dimensions(), source.dimensions());
-                assert_eq!(decoded, source);
-            }
+            let encoded = encode_png(&image, 82, &|| false).unwrap();
+            let decoded = image::load_from_memory_with_format(&encoded, image::ImageFormat::Png)
+                .unwrap()
+                .to_rgba8();
+            assert_eq!(decoded, source);
         }
+    }
+
+    #[test]
+    fn maximum_png_is_indexed_smaller_and_decodable() {
+        let source = RgbaImage::from_fn(384, 256, |x, y| {
+            let mut detail = x.wrapping_add(y.wrapping_mul(384));
+            detail ^= detail >> 16;
+            detail = detail.wrapping_mul(0x7feb_352d);
+            detail ^= detail >> 15;
+            detail = detail.wrapping_mul(0x846c_a68b);
+            detail ^= detail >> 16;
+            Rgba([
+                detail as u8,
+                detail.rotate_left(9) as u8,
+                detail.rotate_left(17) as u8,
+                if x % 11 == 0 { 96 } else { 255 },
+            ])
+        });
+        let image = DynamicImage::ImageRgba8(source.clone());
+        let standard = encode_png(&image, 82, &|| false).unwrap();
+        let maximum = encode_png(&image, 45, &|| false).unwrap();
+
+        let reader = png::Decoder::new(Cursor::new(&maximum))
+            .read_info()
+            .unwrap();
+        assert_eq!(reader.info().color_type, png::ColorType::Indexed);
+        let decoded = image::load_from_memory_with_format(&maximum, image::ImageFormat::Png)
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(decoded.dimensions(), source.dimensions());
+        assert!(decoded.pixels().any(|pixel| pixel[3] < u8::MAX));
+        assert!(decoded.pixels().any(|pixel| pixel[3] == u8::MAX));
+        assert!(
+            maximum.len() < standard.len(),
+            "maximum PNG should be smaller: standard={}, maximum={}",
+            standard.len(),
+            maximum.len()
+        );
+        assert_ne!(decoded, source);
+    }
+
+    #[test]
+    fn maximum_png_honors_cancellation_before_quantizing() {
+        let image =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(32, 32, Rgba([120, 80, 40, 255])));
+        assert_eq!(
+            encode_png(&image, 45, &|| true).unwrap_err(),
+            TransformError::Cancelled
+        );
     }
 
     #[test]

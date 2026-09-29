@@ -97,7 +97,7 @@ performed.
 - Add session-level Compress, Convert, and Resize selection before import.
   **Complete.**
 - Adapt workflow controls into the shared native settings engine. **Complete.**
-- Replace numeric compression quality with Standard, Strong, and Maximum.
+- Replace numeric compression quality with Standard and Maximum.
   **Complete.**
 - Fix original-format JPEG/WebP quality resolution. **Complete.**
 - Add typed native per-image stage milestones. **Complete.**
@@ -121,7 +121,8 @@ performed.
 - Benchmark image-rs JPEG output across representative generated content,
   quality points, decode checks, timing, and PSNR. **Complete.**
 - Review specialized encoders without adding an unproven production dependency.
-  **Complete; pure-Rust `jpeg-encoder` selected and 82/65/45 retained.**
+  **Complete; pure-Rust `jpeg-encoder` selected, 65 evaluated, and product
+  presets retained at 82/45.**
 - Replace conflict-oriented UI state with Create Copies and Replace Originals.
   **Complete.**
 - Require a folder only for Create Copies and replace mixed-directory sources in
@@ -132,12 +133,13 @@ performed.
 - Make converted-target conflicts non-destructive and remove the source only
   after successful converted-file finalization. **Complete.**
 
-### Phase 2.7.1 — Lossless PNG optimization and never-grow compression
+### Phase 2.7.1 — PNG optimization and never-grow compression
 
 - Replace the fast default PNG output with in-memory Oxipng optimization using
-  distinct Standard, Strong, and Maximum effort presets. **Complete.**
-- Preserve exact RGBA pixels and transparency; do not introduce palette
-  quantization into the lossless Compress workflow. **Complete.**
+  a bounded Standard effort preset. **Complete.**
+- Preserve exact RGBA pixels and transparency in Standard. **Complete.**
+- Replace the unproductive Strong and lossless Maximum effort tiers with one
+  perceptual Maximum option using an RGBA-aware indexed palette. **Complete.**
 - Prevent JPEG, PNG, and WebP Compress operations from writing candidates that
   are equal to or larger than their sources. **Complete with typed Already
   Optimized results.**

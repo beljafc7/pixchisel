@@ -288,7 +288,7 @@ export function TransformationOptions({
         {workflow === "compress" && <fieldset className="option-group option-group--wide">
           <legend>Compression</legend>
           <div className="segmented-control">
-            {(["standard", "strong", "maximum"] as const).map((preset) => (
+            {(["standard", "maximum"] as const).map((preset) => (
               <label key={preset}>
                 <input
                   type="radio"
@@ -302,7 +302,7 @@ export function TransformationOptions({
               </label>
             ))}
           </div>
-          <p className="field-note">Standard balances size and quality. Strong and Maximum prioritize smaller files. PNG remains lossless.</p>
+          <p className="field-note">Standard preserves maximum fidelity. Maximum creates much smaller files and may reduce PNG colors.</p>
         </fieldset>}
 
         {workflow === "convert" && <fieldset className="option-group option-group--wide">

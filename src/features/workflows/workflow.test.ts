@@ -11,8 +11,8 @@ import {
 
 describe("workflow settings adapters", () => {
   it("maps all compression presets while preserving source format and dimensions", () => {
-    expect(compressionQuality).toEqual({ standard: 82, strong: 65, maximum: 45 });
-    for (const preset of ["standard", "strong", "maximum"] as const) {
+    expect(compressionQuality).toEqual({ standard: 82, maximum: 45 });
+    for (const preset of ["standard", "maximum"] as const) {
       expect(createCompressSettings(preset)).toMatchObject({
         outputFormat: "original",
         quality: compressionQuality[preset],

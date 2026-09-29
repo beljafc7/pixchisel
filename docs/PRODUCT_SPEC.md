@@ -85,12 +85,13 @@ preservation. Settings are intentionally not persisted between launches.
 
 ### Compress
 
-Compress preserves source format and offers Standard, Strong, and Maximum.
-JPEG and WebP map these to internal qualities 82, 65, and 45. PNG remains
-lossless and maps the same choices to Oxipng effort presets 2, 4, and 6. These
-PNG choices affect optimization effort, never pixel values or color count. A Phase 2.7 JPEG
-benchmark retained these values: lowering Maximum further gave limited savings
-on smooth and graphic material while quality metrics and sharp-detail inspection
+Compress preserves source format and offers Standard and Maximum. Standard uses
+internal quality 82 for JPEG/WebP and lossless PNG optimization. Maximum uses
+internal quality 45 for JPEG/WebP and reduces PNGs to an RGBA-aware indexed
+palette of at most 256 colors. Maximum preserves dimensions and transparency
+support but may alter colors and alpha levels. A Phase 2.7 JPEG benchmark
+retained quality 45 for Maximum: lowering it further gave limited savings on
+smooth and graphic material while quality metrics and sharp-detail inspection
 continued to deteriorate. JPEG output uses the pure-Rust `jpeg-encoder` with
 4:4:4 sampling, progressive scans, and optimized Huffman tables after it measured
 about 3–23% smaller than the prior image-rs encoder at comparable PSNR on the

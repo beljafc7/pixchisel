@@ -42,12 +42,12 @@ bundle.
 produce the existing native `BatchSettings`, so decoding, transformation,
 encoding, safe writing, cancellation, and results remain one shared engine.
 
-Compress preserves format and maps Standard/Strong/Maximum to lossy JPEG/WebP
-qualities 82/65/45 and lossless Oxipng effort presets 2/4/6. Convert targets a
+Compress preserves format and offers two explicit tradeoffs. Standard uses
+JPEG/WebP quality 82 and lossless PNG optimization. Maximum uses JPEG/WebP
+quality 45 and RGBA-aware palette quantization for PNG. Convert targets a
 selected format with resize disabled: JPEG and PNG use the existing internal
 value 92, while WebP uses the corpus-selected value 75. Resize preserves format
-at internal quality 92. PNG presets alter compression search effort, not pixels,
-alpha, or palette size.
+at internal quality 92.
 
 ## Version metadata
 
@@ -200,27 +200,29 @@ WebP has a stricter codec limit of 16,383 pixels per axis and returns a typed
 format-specific error above it. Pixel resampling uses Lanczos3.
 
 JPEG encoding uses `jpeg-encoder` 0.7.1 with quality from 1 through 100. RGBA pixels are
-explicitly composited over white before conversion to RGB. PNG encoding first
-writes lossless RGBA with image-rs, then optimizes those bytes in memory with
-Oxipng 10.2.0. Oxipng presets 2/4/6 represent Standard/Strong/Maximum effort.
-Alpha and all decoded RGBA pixels remain exact, including hidden RGB behind
-transparent pixels. Source metadata is already omitted by the decode-to-pixels
-pipeline. Lossy WebP uses the quality-aware `webp` wrapper around statically
-built libwebp.
+explicitly composited over white before conversion to RGB. Standard PNG first
+writes lossless RGBA with image-rs and then runs Oxipng 10.2.0 preset 2. It
+preserves every decoded RGBA value, including hidden RGB behind transparent
+pixels. Maximum PNG uses the MIT-licensed `color_quant` 2.0.0 NeuQuant
+implementation to produce an indexed palette of at most 256 RGBA colors, then
+runs the same bounded Oxipng preset 2. Maximum therefore preserves dimensions
+and transparency support but may alter colors and alpha levels. Source metadata
+is omitted by the decode-to-pixels pipeline. Lossy WebP uses the quality-aware
+`webp` wrapper around statically built libwebp.
 
-The PNG evaluation rejected palette quantization for V1. `libimagequant` can
-produce materially smaller palette PNGs, but quantization is lossy and its free
-license is GPLv3-or-later; proprietary distribution requires a separate
-commercial license. Oxipng is MIT-licensed, performs lossless optimization, and
-matches PixChisel's proprietary-freeware distribution model without an external
-runtime executable.
+The earlier lossless-only PNG implementation mapped Standard, Strong, and
+Maximum to Oxipng presets 2, 4, and 6. Real 3K–6K images showed that Strong took
+about 12 minutes and Maximum about 24 minutes for only 6–7% total improvement
+over Standard. The effort-only tiers were removed because they were not useful
+product choices. `libimagequant` was also rejected: its free license is
+GPLv3-or-later and proprietary distribution requires a commercial license.
 
-A generated six-image corpus (photographic pattern, alpha, flat color, text,
-gradient, and noise; 512×384) compared the prior fast image-rs PNG output with
-Oxipng presets 2/4/6 and verified exact decoded RGBA equality. Preset 2 took
-about 4–55 ms, preset 4 about 12–89 ms, and preset 6 about 44–550 ms on the
-benchmark Mac. Presets 4 and 6 frequently differed by only a few bytes, so
-Maximum is intentionally an effort setting rather than a promised savings tier.
+The replacement Maximum benchmark processed eleven valid real-world images in
+about 83 seconds in a release build. Applying the native never-grow rule reduced
+the comparable batch from 81,013,992 bytes to 21,972,792 bytes. The seven PNGs
+measured approximately 43.69–48.00 dB PSNR where changed; one already-efficient
+PNG remained byte-for-byte unchanged. These measurements establish a regression
+baseline, not a promise that every corpus will reach the same ratio.
 
 The selected encoder uses 4:4:4 sampling to protect color detail, progressive
 output, and image-specific optimized Huffman tables. The previous image-rs
@@ -238,7 +240,8 @@ substitute for perception. At qualities 82/65/45, results were: photographic
 102,898/87,401/78,958 bytes at 44.59/39.51/38.44 dB. Release-mode encoding took
 approximately 5–19 ms per image at those presets on the benchmark Mac. Moving
 from quality 45 to 35 saved only about 1–7% on four non-noise cases while
-degradation continued, so Standard/Strong/Maximum remain 82/65/45.
+degradation continued, so the retained Standard and Maximum values are 82 and
+45.
 
 The same corpus then compared pure-Rust `jpeg-encoder` with progressive output,
 optimized Huffman tables, and both 4:2:0 and 4:4:4 sampling. 4:2:0 was rejected:

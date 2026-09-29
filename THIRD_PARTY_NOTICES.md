@@ -25,6 +25,7 @@ Key shipped components include:
 | Tauri dialog plugin / `@tauri-apps/plugin-dialog` | 2.7.2 | Native file and folder dialogs | MIT or Apache-2.0 |
 | React / React DOM / Scheduler | 19.2.8 / 19.2.8 / 0.27.0 | User interface runtime | MIT |
 | `image` / image-rs | 0.25.10 | Image decoding plus PNG and lossless WebP encoding | MIT or Apache-2.0 |
+| `color_quant` | 2.0.0 | RGBA palette quantization for Maximum PNG compression | MIT |
 | `jpeg-encoder` | 0.7.1 | Progressive JPEG encoding with optimized Huffman tables | (MIT or Apache-2.0) and IJG |
 | Oxipng | 10.2.0 | Lossless in-memory PNG optimization | MIT |
 | `libdeflater` / `libdeflate-sys` | 1.25.2 / 1.25.2 | Statically built compression backend used by Oxipng | Apache-2.0 |
@@ -49,8 +50,9 @@ Before publishing any installer or application bundle, the release process must:
 3. include the BSD notice required for the statically linked libwebp sources;
 4. include the IJG notice and the selected MIT or Apache-2.0 terms required by
    `jpeg-encoder`;
-5. include the MIT notice for Oxipng and the Apache-2.0 notices required by
-   `libdeflater`, `libdeflate-sys`, and their statically built code;
+5. include the MIT notices for `color_quant` and Oxipng and the Apache-2.0
+   notices required by `libdeflater`, `libdeflate-sys`, and their statically
+   built code;
 6. preserve any copyright, attribution, and notice files required by the chosen
    MIT/Apache-2.0 license options; and
 7. review target-specific macOS and Windows packages separately because their

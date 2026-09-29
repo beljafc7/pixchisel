@@ -110,7 +110,7 @@ describe("output settings", () => {
   });
 
   it("preserves destination shapes through every workflow", () => {
-    for (const settings of [createCompressSettings("strong"), createConvertSettings("webp")]) {
+    for (const settings of [createCompressSettings("maximum"), createConvertSettings("webp")]) {
       expect(createWriteImageRequest("/images/photo.jpg", settings, {
         outputDirectory: null,
         saveMode: "replaceOriginals",

@@ -18,8 +18,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+color_quant = "2.0.0"
 jpeg-encoder = { version = "0.7.1", default-features = false, features = ["std"] }
 oxipng = { version = "10.2.0", default-features = false }
+png = "0.18.1"
 libwebp-sys = "0.9.6"
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"

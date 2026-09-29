@@ -330,6 +330,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "color_quant"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00c1c79b421ca69d94677a49b2ccf389dab3409952aed790594de8fa03b07989"
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2241,10 +2247,12 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 name = "pixchisel"
 version = "0.3.0"
 dependencies = [
+ "color_quant",
  "image",
  "jpeg-encoder",
  "libwebp-sys",
  "oxipng",
+ "png 0.18.1",
  "serde",
  "serde_json",
  "tauri",

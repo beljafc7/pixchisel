@@ -104,6 +104,25 @@ describe("save destination rendering", () => {
 });
 
 describe("sidebar content order", () => {
+  it("offers only Standard and Maximum compression", () => {
+    const markup = renderToStaticMarkup(<TransformationOptions
+      workflow="compress"
+      readyPaths={[]}
+      queuePaths={[]}
+      processingStates={{}}
+      onBatchStart={() => undefined}
+      onItemState={() => undefined}
+      onRunningChange={() => undefined}
+      onResultsInvalidated={() => undefined}
+      workspaceResetVersion={0}
+    />);
+
+    expect(markup).toContain("Standard");
+    expect(markup).toContain("Maximum");
+    expect(markup).not.toContain("Strong");
+    expect(markup).toContain("may reduce PNG colors");
+  });
+
   it("places the local-processing reassurance after the primary action", () => {
     const markup = renderToStaticMarkup(<TransformationOptions
       workflow="compress"

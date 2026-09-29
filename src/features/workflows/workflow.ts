@@ -6,7 +6,7 @@ import {
 } from "../image-processing/settings";
 
 export type WorkflowMode = "compress" | "convert" | "resize";
-export type CompressionPreset = "standard" | "strong" | "maximum";
+export type CompressionPreset = "standard" | "maximum";
 export type ConversionFormat = Exclude<OutputFormat, "original">;
 
 export const conversionQuality: Record<ConversionFormat, number> = {
@@ -18,7 +18,6 @@ export const RESIZE_QUALITY = 92;
 
 export const compressionQuality: Record<CompressionPreset, number> = {
   standard: 82,
-  strong: 65,
   maximum: 45,
 };
 
@@ -67,7 +66,7 @@ export function createResizeSettings(resize: ResizeWorkflowSettings): BatchSetti
 }
 
 export const workflowCopy: Record<WorkflowMode, { title: string; headline: string; accent: string; intro: string; description: string; resultVerb: string }> = {
-  compress: { title: "Compress Images", headline: "Smaller images.", accent: "Same great quality.", intro: "Compress images without visible quality loss. Everything stays on your device.", description: "Reduce size", resultVerb: "compressed" },
+  compress: { title: "Compress Images", headline: "Smaller images.", accent: "Same great quality.", intro: "Choose fidelity-first Standard or a much smaller Maximum result. Everything stays on your device.", description: "Reduce size", resultVerb: "compressed" },
   convert: { title: "Convert Images", headline: "Convert images.", accent: "Any format, instantly.", intro: "Change image formats in batch. PNG, JPEG, WebP — your choice.", description: "Change format", resultVerb: "converted" },
   resize: { title: "Resize Images", headline: "Resize images.", accent: "Perfect dimensions.", intro: "Resize by width, height, fit, or percentage. Non-destructive and fast.", description: "Dimensions", resultVerb: "resized" },
 };
