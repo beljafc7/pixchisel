@@ -51,7 +51,8 @@ performed.
 - Implement safe native output writes. **Complete for single-image output in
   Phase 2.2, including source-equals-destination protection.**
 - Add metadata removal where supported. **Complete for the current V1 policy:
-  transformed outputs explicitly remove transferable metadata.**
+  transformed outputs explicitly remove transferable metadata while Resize
+  retains JPEG and PNG physical resolution.**
 
 ### Phase 2.2 — Filesystem boundary — complete
 
@@ -63,7 +64,8 @@ performed.
 - Write encoded bytes to a temporary sibling and finalize atomically where the
   platform and destination filesystem permit. **Complete.**
 - Surface the metadata-preservation limitation before enabling production output.
-  **Complete: V1 transformed outputs explicitly remove metadata.**
+  **Complete: V1 transformed outputs explicitly remove metadata while Resize
+  retains supported physical resolution.**
 
 ### Phase 2.3 — Batch boundary — complete
 

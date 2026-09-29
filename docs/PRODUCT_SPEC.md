@@ -130,9 +130,10 @@ subject to this rule.
 - Source files remain untouched during transformation.
 
 The current re-encode pipeline does not preserve source EXIF, ICC, XMP, or PNG
-textual metadata. The V1 interface truthfully states that transformed outputs
-remove metadata rather than offering a preservation control the encoder pipeline
-cannot honor.
+textual metadata. Resize preserves JPEG and PNG physical-resolution metadata so
+changing pixel dimensions does not silently change the source DPI. Other
+transferable metadata remains removed rather than being exposed as a preservation
+control the encoder pipeline cannot honor.
 
 ### Batch processing
 
@@ -175,7 +176,8 @@ started after cancellation becomes Cancelled.
   directory, including mixed-directory and recursively imported batches.
 - Display a concise warning that replacing originals cannot be undone.
 - Remove transferable image metadata from transformed output in the current V1
-  pipeline and communicate that behavior directly.
+  pipeline and communicate that behavior directly. Resize retains supported
+  JPEG and PNG physical-resolution values.
 - Avoid partially written final files by writing safely and finalizing only after
   successful encoding.
 - Retain the selected directory and save mode only for the current session.

@@ -1,5 +1,6 @@
 mod encode;
 mod resize;
+mod resolution;
 pub mod settings;
 
 use std::{fs::File, io::BufReader, path::Path};
@@ -7,8 +8,11 @@ use std::{fs::File, io::BufReader, path::Path};
 use image::{imageops::FilterType, DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use serde::Serialize;
 
+#[cfg(test)]
 use encode::encode_image;
+use encode::encode_image_with_resolution;
 use resize::{calculate_target, Dimensions, ResizeError};
+use resolution::read_physical_resolution;
 pub use settings::{
     BatchSettings, OutputFormat, ResizeMode, ResizeSettings, ValidationError, ValidationErrorCode,
 };
@@ -118,6 +122,11 @@ pub fn transform_image_with_progress_and_cancellation(
         .with_guessed_format()
         .map_err(|_| TransformError::DecodeFailed)?;
     let input_format = supported_format(reader.format())?;
+    let physical_resolution = if settings.resize.mode == ResizeMode::None {
+        None
+    } else {
+        read_physical_resolution(path, input_format)
+    };
     let mut decoder = reader
         .into_decoder()
         .map_err(|_| TransformError::DecodeFailed)?;
@@ -160,7 +169,13 @@ pub fn transform_image_with_progress_and_cancellation(
         82
     };
     on_stage(ProcessingStage::Encoding);
-    let bytes = encode_image(&image, output_format, quality, &should_cancel)?;
+    let bytes = encode_image_with_resolution(
+        &image,
+        output_format,
+        quality,
+        physical_resolution,
+        &should_cancel,
+    )?;
     if should_cancel() {
         return Err(TransformError::Cancelled);
     }
@@ -321,6 +336,43 @@ mod tests {
         path
     }
 
+    fn write_jpeg_with_density(image: &RgbaImage, dpi: u16) -> TestFile {
+        let path = test_path("jpg");
+        let rgb = DynamicImage::ImageRgba8(image.clone()).to_rgb8();
+        let mut bytes = Vec::new();
+        let mut encoder = jpeg_encoder::Encoder::new(&mut bytes, 92);
+        encoder.set_density(jpeg_encoder::PixelDensity::dpi(dpi));
+        encoder
+            .encode(
+                rgb.as_raw(),
+                u16::try_from(image.width()).unwrap(),
+                u16::try_from(image.height()).unwrap(),
+                jpeg_encoder::ColorType::Rgb,
+            )
+            .unwrap();
+        fs::write(&path.0, bytes).unwrap();
+        path
+    }
+
+    fn write_png_with_density(image: &RgbaImage, pixels_per_meter: u32) -> TestFile {
+        let path = test_path("png");
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut bytes, image.width(), image.height());
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder.set_pixel_dims(Some(png::PixelDimensions {
+                xppu: pixels_per_meter,
+                yppu: pixels_per_meter,
+                unit: png::Unit::Meter,
+            }));
+            let mut writer = encoder.write_header().unwrap();
+            writer.write_image_data(image.as_raw()).unwrap();
+        }
+        fs::write(&path.0, bytes).unwrap();
+        path
+    }
+
     #[test]
     fn jpeg_to_jpeg_encodes_valid_requested_dimensions() {
         let source = write_source(
@@ -338,6 +390,54 @@ mod tests {
         assert_eq!(
             (result.metadata.output_width, result.metadata.output_height),
             (4, 2)
+        );
+    }
+
+    #[test]
+    fn resize_preserves_jpeg_physical_resolution() {
+        let source =
+            write_jpeg_with_density(&RgbaImage::from_pixel(8, 4, Rgba([20, 80, 160, 255])), 300);
+        let mut options = settings(OutputFormat::Original);
+        options.resize.mode = ResizeMode::Percentage;
+        options.resize.percentage = 150;
+        options.allow_upscaling = true;
+
+        let result = transform_image(&source.0, &options).unwrap();
+        let output = test_path("jpg");
+        fs::write(&output.0, result.bytes).unwrap();
+
+        assert_eq!(
+            read_physical_resolution(&output.0, OutputFormat::Jpeg),
+            Some(resolution::PhysicalResolution {
+                horizontal: 300,
+                vertical: 300,
+                unit: resolution::ResolutionUnit::Inches,
+            })
+        );
+    }
+
+    #[test]
+    fn resize_preserves_png_physical_resolution() {
+        let source = write_png_with_density(
+            &RgbaImage::from_pixel(8, 4, Rgba([20, 80, 160, 255])),
+            11_811,
+        );
+        let mut options = settings(OutputFormat::Original);
+        options.resize.mode = ResizeMode::Percentage;
+        options.resize.percentage = 150;
+        options.allow_upscaling = true;
+
+        let result = transform_image(&source.0, &options).unwrap();
+        let output = test_path("png");
+        fs::write(&output.0, result.bytes).unwrap();
+
+        assert_eq!(
+            read_physical_resolution(&output.0, OutputFormat::Png),
+            Some(resolution::PhysicalResolution {
+                horizontal: 11_811,
+                vertical: 11_811,
+                unit: resolution::ResolutionUnit::Meters,
+            })
         );
     }
 

@@ -1,31 +1,61 @@
+#[cfg(test)]
 use std::io::Cursor;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use color_quant::NeuQuant;
-use image::{codecs::png::PngEncoder, DynamicImage, ExtendedColorType, ImageEncoder};
-use jpeg_encoder::{ColorType as JpegColorType, Encoder as JpegEncoder, SamplingFactor};
+use image::DynamicImage;
+use jpeg_encoder::{
+    ColorType as JpegColorType, Encoder as JpegEncoder, PixelDensity, PixelDensityUnit,
+    SamplingFactor,
+};
 
-use super::{settings::OutputFormat, TransformError};
+use super::{
+    resolution::{PhysicalResolution, ResolutionUnit},
+    settings::OutputFormat,
+    TransformError,
+};
 
 const WEBP_MAX_DIMENSION: u32 = 16_383;
 const MAXIMUM_PNG_COLORS: usize = 256;
 const MAXIMUM_PNG_SAMPLE_FACTOR: i32 = 10;
 
+#[cfg(test)]
 pub fn encode_image(
     image: &DynamicImage,
     format: OutputFormat,
     quality: u8,
     should_cancel: &dyn Fn() -> bool,
 ) -> Result<Vec<u8>, TransformError> {
+    encode_image_with_resolution(image, format, quality, None, should_cancel)
+}
+
+pub fn encode_image_with_resolution(
+    image: &DynamicImage,
+    format: OutputFormat,
+    quality: u8,
+    physical_resolution: Option<PhysicalResolution>,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, TransformError> {
     match format {
-        OutputFormat::Jpeg => encode_jpeg(image, quality),
-        OutputFormat::Png => encode_png(image, quality, should_cancel),
+        OutputFormat::Jpeg => encode_jpeg_with_resolution(image, quality, physical_resolution),
+        OutputFormat::Png => {
+            encode_png_with_resolution(image, quality, physical_resolution, should_cancel)
+        }
         OutputFormat::Webp => encode_webp(image, quality, should_cancel),
         OutputFormat::Original => Err(TransformError::UnsupportedOutputFormat),
     }
 }
 
+#[cfg(test)]
 fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, TransformError> {
+    encode_jpeg_with_resolution(image, quality, None)
+}
+
+fn encode_jpeg_with_resolution(
+    image: &DynamicImage,
+    quality: u8,
+    physical_resolution: Option<PhysicalResolution>,
+) -> Result<Vec<u8>, TransformError> {
     let rgba = image.to_rgba8();
     let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
     for pixel in rgba.pixels() {
@@ -40,6 +70,9 @@ fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, TransformEr
     let width = u16::try_from(image.width()).map_err(|_| TransformError::EncodeFailed)?;
     let height = u16::try_from(image.height()).map_err(|_| TransformError::EncodeFailed)?;
     let mut encoder = JpegEncoder::new(&mut bytes, quality);
+    if let Some(resolution) = jpeg_density(physical_resolution) {
+        encoder.set_density(resolution);
+    }
     encoder.set_sampling_factor(SamplingFactor::F_1_1);
     encoder.set_progressive(true);
     encoder.set_optimized_huffman_tables(true);
@@ -49,22 +82,42 @@ fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, TransformEr
     Ok(bytes)
 }
 
+#[cfg(test)]
 fn encode_png(
     image: &DynamicImage,
     quality: u8,
     should_cancel: &dyn Fn() -> bool,
 ) -> Result<Vec<u8>, TransformError> {
+    encode_png_with_resolution(image, quality, None, should_cancel)
+}
+
+fn encode_png_with_resolution(
+    image: &DynamicImage,
+    quality: u8,
+    physical_resolution: Option<PhysicalResolution>,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, TransformError> {
     let rgba = image.to_rgba8();
     let encoded = if quality >= 82 {
-        encode_lossless_png(&rgba, image.width(), image.height())?
+        encode_lossless_png(&rgba, image.width(), image.height(), physical_resolution)?
     } else {
-        encode_indexed_png(&rgba, image.width(), image.height(), should_cancel)?
+        encode_indexed_png(
+            &rgba,
+            image.width(),
+            image.height(),
+            physical_resolution,
+            should_cancel,
+        )?
     };
     if should_cancel() {
         return Err(TransformError::Cancelled);
     }
     let mut options = oxipng::Options::from_preset(2);
-    options.strip = oxipng::StripChunks::All;
+    options.strip = if png_dimensions(physical_resolution).is_some() {
+        oxipng::StripChunks::Keep([*b"pHYs"].into_iter().collect())
+    } else {
+        oxipng::StripChunks::All
+    };
     options.optimize_alpha = false;
     oxipng::optimize_from_memory(&encoded, &options).map_err(|_| TransformError::EncodeFailed)
 }
@@ -73,18 +126,29 @@ fn encode_lossless_png(
     rgba: &image::RgbaImage,
     width: u32,
     height: u32,
+    physical_resolution: Option<PhysicalResolution>,
 ) -> Result<Vec<u8>, TransformError> {
-    let mut bytes = Cursor::new(Vec::new());
-    PngEncoder::new(&mut bytes)
-        .write_image(rgba.as_raw(), width, height, ExtendedColorType::Rgba8)
-        .map_err(|_| TransformError::EncodeFailed)?;
-    Ok(bytes.into_inner())
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut bytes, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_pixel_dims(png_dimensions(physical_resolution));
+        let mut writer = encoder
+            .write_header()
+            .map_err(|_| TransformError::EncodeFailed)?;
+        writer
+            .write_image_data(rgba.as_raw())
+            .map_err(|_| TransformError::EncodeFailed)?;
+    }
+    Ok(bytes)
 }
 
 fn encode_indexed_png(
     rgba: &image::RgbaImage,
     width: u32,
     height: u32,
+    physical_resolution: Option<PhysicalResolution>,
     should_cancel: &dyn Fn() -> bool,
 ) -> Result<Vec<u8>, TransformError> {
     if should_cancel() {
@@ -117,6 +181,7 @@ fn encode_indexed_png(
         let mut encoder = png::Encoder::new(&mut bytes, width, height);
         encoder.set_color(png::ColorType::Indexed);
         encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_pixel_dims(png_dimensions(physical_resolution));
         encoder.set_palette(rgb_palette);
         if alpha_palette.iter().any(|alpha| *alpha != u8::MAX) {
             encoder.set_trns(alpha_palette);
@@ -129,6 +194,36 @@ fn encode_indexed_png(
             .map_err(|_| TransformError::EncodeFailed)?;
     }
     Ok(bytes)
+}
+
+fn jpeg_density(resolution: Option<PhysicalResolution>) -> Option<PixelDensity> {
+    let resolution = resolution?;
+    let horizontal = u16::try_from(resolution.horizontal).ok()?;
+    let vertical = u16::try_from(resolution.vertical).ok()?;
+    let unit = match resolution.unit {
+        ResolutionUnit::Unspecified => PixelDensityUnit::PixelAspectRatio,
+        ResolutionUnit::Inches => PixelDensityUnit::Inches,
+        ResolutionUnit::Centimeters => PixelDensityUnit::Centimeters,
+        ResolutionUnit::Meters => return None,
+    };
+    Some(PixelDensity {
+        density: (horizontal, vertical),
+        unit,
+    })
+}
+
+fn png_dimensions(resolution: Option<PhysicalResolution>) -> Option<png::PixelDimensions> {
+    let resolution = resolution?;
+    let unit = match resolution.unit {
+        ResolutionUnit::Unspecified => png::Unit::Unspecified,
+        ResolutionUnit::Meters => png::Unit::Meter,
+        ResolutionUnit::Inches | ResolutionUnit::Centimeters => return None,
+    };
+    Some(png::PixelDimensions {
+        xppu: resolution.horizontal,
+        yppu: resolution.vertical,
+        unit,
+    })
 }
 
 fn encode_webp(

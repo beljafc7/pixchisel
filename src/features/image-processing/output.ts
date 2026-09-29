@@ -134,7 +134,7 @@ function invalidResult(): WriteImageError {
 }
 
 export const METADATA_BEHAVIOR_MESSAGE =
-  "Metadata is removed from transformed files in this version.";
+  "Metadata is removed from transformed files in this version. Resize preserves physical resolution.";
 
 export function createDefaultOutputSettings(): OutputSettings {
   return {

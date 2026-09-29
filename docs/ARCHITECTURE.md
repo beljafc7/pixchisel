@@ -268,16 +268,24 @@ orientation changes and format conversion is not uniform. PNG textual chunks
 are also not retained by the current decode-to-pixels path. Phase 2.1 therefore
 copies no source EXIF, ICC, XMP, or PNG textual metadata.
 
+Resize is the narrow exception for physical resolution. Before pixel decoding,
+the native pipeline reads JPEG JFIF density or the PNG `pHYs` chunk and passes
+only that value to the matching encoder. This keeps a 300 DPI source at 300 DPI
+after resizing without retaining descriptive, location, camera, or timestamp
+metadata. WebP has no native physical-resolution field outside metadata
+containers, so the current policy does not synthesize one.
+
 With `removeMetadata: true`, the result reports intentional removal. With it
 false, the result reports `discardedUnsupported` rather than claiming
-preservation. Encoder-required structural headers are not treated as source
-metadata. A narrowly scoped preservation policy must be designed separately if
-preservation is required before V1 release.
+preservation. Encoder-required structural headers and Resize's narrowly
+preserved physical resolution are not treated as transferable source metadata.
+Any broader preservation policy must be designed separately.
 
 The V1 interface now presents this limitation as fixed behavior rather than an
-editable option: transformed outputs remove transferable metadata. New frontend
-settings therefore use `removeMetadata: true`; the field remains in the native
-contract so behavior stays explicit.
+editable option: transformed outputs remove transferable metadata while Resize
+retains supported physical-resolution values. New frontend settings therefore
+use `removeMetadata: true`; the field remains in the native contract so behavior
+stays explicit.
 
 ## Output filesystem boundary
 
