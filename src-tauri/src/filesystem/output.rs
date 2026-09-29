@@ -46,6 +46,7 @@ pub enum WriteOperation {
 #[serde(tag = "mode", rename_all = "camelCase", deny_unknown_fields)]
 pub enum WriteDestination {
     Directory { path: PathBuf },
+    AutomaticDirectory { path: PathBuf },
     ReplaceOriginal,
 }
 
@@ -170,54 +171,60 @@ pub fn write_transformed_image_with_progress_and_cancellation(
     let original_size_bytes = fs::metadata(&request.source_path)
         .map_err(|_| transform_failed())?
         .len();
-    let (directory, destination, finalization, remove_source_after) = match &request.destination {
-        WriteDestination::Directory { path } => {
-            validate_output_directory(path)?;
-            let base_destination = output_path(&request.source_path, path, output_format)?;
-            (
-                path.clone(),
-                available_copy_path(&base_destination)?,
-                ConflictPolicy::CreateCopy,
-                false,
-            )
-        }
-        WriteDestination::ReplaceOriginal => {
-            let directory = request
-                .source_path
-                .parent()
-                .filter(|path| !path.as_os_str().is_empty())
-                .ok_or_else(|| {
-                    WriteImageError::new(
-                        WriteImageErrorCode::UnsafeSourceDestination,
-                        "The source image does not have a safe parent folder.",
-                    )
-                })?
-                .to_path_buf();
-            validate_output_directory(&directory)?;
-            let destination = if request.settings.output_format == OutputFormat::Original {
-                request.source_path.clone()
-            } else {
-                output_path(&request.source_path, &directory, output_format)?
-            };
-            let changes_path = destination != request.source_path;
-            if changes_path && destination.exists() {
-                return Err(WriteImageError::new(
+    let (directory, mut destination, finalization, remove_source_after, create_directory) =
+        match &request.destination {
+            WriteDestination::Directory { path } => {
+                validate_output_directory(path)?;
+                let base_destination = output_path(&request.source_path, path, output_format)?;
+                (
+                    path.clone(),
+                    Some(available_copy_path(&base_destination)?),
+                    ConflictPolicy::CreateCopy,
+                    false,
+                    false,
+                )
+            }
+            WriteDestination::AutomaticDirectory { path } => {
+                (path.clone(), None, ConflictPolicy::CreateCopy, false, true)
+            }
+            WriteDestination::ReplaceOriginal => {
+                let directory = request
+                    .source_path
+                    .parent()
+                    .filter(|path| !path.as_os_str().is_empty())
+                    .ok_or_else(|| {
+                        WriteImageError::new(
+                            WriteImageErrorCode::UnsafeSourceDestination,
+                            "The source image does not have a safe parent folder.",
+                        )
+                    })?
+                    .to_path_buf();
+                validate_output_directory(&directory)?;
+                let destination = if request.settings.output_format == OutputFormat::Original {
+                    request.source_path.clone()
+                } else {
+                    output_path(&request.source_path, &directory, output_format)?
+                };
+                let changes_path = destination != request.source_path;
+                if changes_path && destination.exists() {
+                    return Err(WriteImageError::new(
                     WriteImageErrorCode::DestinationConflict,
                     "A different file already uses the converted filename. The original was not changed.",
                 ));
+                }
+                (
+                    directory,
+                    Some(destination),
+                    if changes_path {
+                        ConflictPolicy::CreateCopy
+                    } else {
+                        ConflictPolicy::Overwrite
+                    },
+                    changes_path,
+                    false,
+                )
             }
-            (
-                directory,
-                destination,
-                if changes_path {
-                    ConflictPolicy::CreateCopy
-                } else {
-                    ConflictPolicy::Overwrite
-                },
-                changes_path,
-            )
-        }
-    };
+        };
     ensure_not_cancelled(&should_cancel)?;
     let transformed = transform_image_with_progress_and_cancellation(
         &request.source_path,
@@ -239,6 +246,12 @@ pub fn write_transformed_image_with_progress_and_cancellation(
             candidate_size_bytes: transformed.bytes.len() as u64,
         });
     }
+    if create_directory {
+        create_automatic_output_directory(&directory)?;
+        let base_destination = output_path(&request.source_path, &directory, output_format)?;
+        destination = Some(available_copy_path(&base_destination)?);
+    }
+    let destination = destination.expect("every writable destination is resolved before saving");
     report(ProcessingStage::Saving);
     let mut temporary = TemporaryOutput::create(&directory)?;
     temporary.write_all(&transformed.bytes)?;
@@ -356,6 +369,18 @@ pub(crate) fn validate_output_directory(directory: &Path) -> Result<(), WriteIma
             "The selected output folder is no longer available.",
         )),
     }
+}
+
+fn create_automatic_output_directory(directory: &Path) -> Result<(), WriteImageError> {
+    fs::create_dir_all(directory).map_err(|error| {
+        let message = if error.kind() == io::ErrorKind::PermissionDenied {
+            "PixChisel does not have permission to create the automatic output folder. Choose another folder and retry."
+        } else {
+            "PixChisel could not create the automatic output folder. Choose another folder and retry."
+        };
+        WriteImageError::new(WriteImageErrorCode::OutputDirectoryNotWritable, message)
+    })?;
+    validate_output_directory(directory)
 }
 
 struct TemporaryOutput {
@@ -698,6 +723,17 @@ mod tests {
         let replace: WriteDestination =
             serde_json::from_value(serde_json::json!({ "mode": "replaceOriginal" })).unwrap();
         assert_eq!(replace, WriteDestination::ReplaceOriginal);
+        let automatic: WriteDestination = serde_json::from_value(serde_json::json!({
+            "mode": "automaticDirectory",
+            "path": "/images/PixChisel Copies"
+        }))
+        .unwrap();
+        assert_eq!(
+            automatic,
+            WriteDestination::AutomaticDirectory {
+                path: PathBuf::from("/images/PixChisel Copies")
+            }
+        );
     }
 
     #[test]
@@ -980,14 +1016,16 @@ mod tests {
         .unwrap();
         let optimized = written_path(&first);
         let before = fs::read(&optimized).unwrap();
-        let copy_directory = root.0.join("copies");
-        fs::create_dir(&copy_directory).unwrap();
+        let copy_directory = root.0.join("PixChisel Copies");
         let mut copy_request = request(
             optimized.clone(),
             copy_directory.clone(),
             OutputFormat::Original,
             ConflictPolicy::CreateCopy,
         );
+        copy_request.destination = WriteDestination::AutomaticDirectory {
+            path: copy_directory.clone(),
+        };
         copy_request.operation = WriteOperation::Compress;
         let mut stages = Vec::new();
         let copy_result = write_transformed_image_with_progress(copy_request, |progress| {
@@ -1004,7 +1042,7 @@ mod tests {
                 ProcessingStage::Encoding,
             ]
         );
-        assert!(fs::read_dir(copy_directory).unwrap().next().is_none());
+        assert!(!copy_directory.exists());
         assert_eq!(fs::read(&optimized).unwrap(), before);
 
         let mut replace_request = request(
@@ -1020,6 +1058,28 @@ mod tests {
             WriteImageResult::NotSmaller { .. }
         ));
         assert_eq!(fs::read(optimized).unwrap(), before);
+    }
+
+    #[test]
+    fn automatic_directory_is_created_only_when_an_output_will_be_written() {
+        let root = TestDirectory::new();
+        let source = write_source(&root.0, "source.png");
+        let automatic = root.0.join("PixChisel Copies");
+        let mut request = WriteImageRequest {
+            source_path: source,
+            settings: settings(OutputFormat::Png),
+            destination: WriteDestination::AutomaticDirectory {
+                path: automatic.clone(),
+            },
+            operation: WriteOperation::Resize,
+        };
+        request.settings.resize.mode = ResizeMode::Width;
+        request.settings.resize.width = 4;
+
+        let result = write_transformed_image(request).unwrap();
+
+        assert!(automatic.is_dir());
+        assert!(written_path(&result).starts_with(&automatic));
     }
 
     #[test]

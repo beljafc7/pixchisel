@@ -12,9 +12,9 @@
   --control-hover: #2b2b2b;
   --line: rgb(255 255 255 / 6%);
   --line-strong: rgb(255 255 255 / 10%);
-  --muted: #6b7280;
-  --muted-strong: #9ca3af;
-  --muted-dim: #4b5563;
+  --muted: #a3acba;
+  --muted-strong: #c2c8d1;
+  --muted-dim: #8993a2;
   --accent: #6ee05e;
   --accent-soft: rgb(110 224 94 / 12%);
   --danger: #f87171;
@@ -432,7 +432,7 @@ input:focus-visible {
 
 .workflow-choice span {
   justify-self: end;
-  color: rgb(255 255 255 / 20%);
+  color: var(--muted-dim);
   font-size: 12px;
   font-weight: 600;
 }
@@ -445,7 +445,7 @@ input:focus-visible {
   background: var(--accent-soft);
 }
 
-.workflow-choice--active span { color: rgb(110 224 94 / 60%); }
+.workflow-choice--active span { color: rgb(110 224 94 / 78%); }
 .workflow-choice:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .queue-workspace {

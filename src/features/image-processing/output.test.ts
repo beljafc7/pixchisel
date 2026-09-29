@@ -8,6 +8,7 @@ import {
   createWriteImageRequest,
   isFutureProcessingReady,
   parseWriteImageResult,
+  resolveCopyDestination,
   SAVE_MODE_OPTIONS,
 } from "./output";
 
@@ -36,21 +37,29 @@ describe("output settings", () => {
     expect(update(createDefaultOutputSettings()).saveMode).toBe("replaceOriginals");
   });
 
-  it("requires an output folder for future processing readiness", () => {
+  it("uses an automatic folder for same-directory sources and requires a choice for mixed sources", () => {
     const settings = createDefaultBatchSettings();
     const output = createDefaultOutputSettings();
     expect(isFutureProcessingReady(1, settings, output)).toBe(false);
+    const automatic = resolveCopyDestination(["/images/photo.jpg", "/images/logo.png"], null);
+    expect(automatic).toEqual({
+      path: "/images/PixChisel Copies",
+      preflightPath: "/images",
+      automatic: true,
+    });
+    expect(isFutureProcessingReady(2, settings, output, automatic)).toBe(true);
+    expect(resolveCopyDestination(["/one/photo.jpg", "/two/logo.png"], null)).toBeNull();
     expect(
       isFutureProcessingReady(1, settings, {
         ...output,
         outputDirectory: "/images/output",
-      }),
+      }, resolveCopyDestination([], "/images/output")),
     ).toBe(true);
     expect(
       isFutureProcessingReady(0, settings, {
         ...output,
         outputDirectory: "/images/output",
-      }),
+      }, resolveCopyDestination([], "/images/output")),
     ).toBe(false);
     expect(isFutureProcessingReady(1, settings, {
       ...output,
@@ -60,11 +69,12 @@ describe("output settings", () => {
 
   it("serializes directory and replace-original destination shapes", () => {
     const settings = createDefaultBatchSettings();
+    const selected = resolveCopyDestination([], "/images/output");
     expect(
       createWriteImageRequest("/images/source.png", settings, {
         outputDirectory: "/images/output",
         saveMode: "createCopies",
-      }, "compress"),
+      }, "compress", selected),
     ).toEqual({
       sourcePath: "/images/source.png",
       settings,
@@ -84,6 +94,19 @@ describe("output settings", () => {
       outputDirectory: null,
       saveMode: "createCopies",
     }, "compress")).toBeNull();
+  });
+
+  it("serializes an automatic directory without treating it as a selected folder", () => {
+    const settings = createDefaultBatchSettings();
+    const output = createDefaultOutputSettings();
+    const automatic = resolveCopyDestination(["C:\\images\\photo.jpg"], null);
+    expect(automatic).toEqual({
+      path: "C:\\images\\PixChisel Copies",
+      preflightPath: "C:\\images",
+      automatic: true,
+    });
+    expect(createWriteImageRequest("C:\\images\\photo.jpg", settings, output, "compress", automatic))
+      .toMatchObject({ destination: { mode: "automaticDirectory", path: automatic?.path } });
   });
 
   it("preserves destination shapes through every workflow", () => {

@@ -97,9 +97,11 @@ existing content-based inspector.
 
 Traversal skips symbolic links to prevent cycles and ignores dot-hidden entries.
 Unsupported folder contents are silent, while explicitly supplied unsupported
-files remain actionable. Results are deduplicated by path and append without
-reordering the existing queue. Output selection remains separate; V1 flattens
-folder batches into the selected destination rather than preserving hierarchy.
+files remain actionable. Generated directories named `PixChisel Copies` are
+also skipped so a later recursive import does not re-ingest automatic outputs.
+Results are deduplicated by path and append without reordering the existing
+queue. Output selection remains separate; V1 flattens folder batches into the
+resolved destination rather than preserving hierarchy.
 - Apply output naming and conflict rules.
 - Return structured results and errors.
 
@@ -131,6 +133,9 @@ Long-running processing should return a job identifier promptly. Progress and
 completion should arrive as events that contain the job identifier and stable
 file identifier. Cancellation should be cooperative: stop scheduling new work,
 allow safe interruption points, clean temporary output, and report final states.
+The interface marks unfinished rows cancelled immediately. A codec operation
+without an interruption hook may continue draining on its blocking worker, but
+the UI reports that safe cleanup explicitly and no cancelled output is finalized.
 
 The import command is `inspect_images(paths)`. It enters Tauri's blocking task
 pool, uses at most four native inspection workers, and preserves input order in
@@ -286,13 +291,18 @@ as Already Optimized and excludes it from written-byte savings totals. This
 applies uniformly to JPEG, PNG, and WebP; Convert and Resize remain allowed to
 grow.
 
-The Create Copies directory is chosen with the existing native dialog permission and
-retained only in React session state. No general filesystem or shell plugin
-permission is granted. Before a batch starts, a narrow native preflight verifies
-that the destination still exists, is a directory, and accepts an
-exclusive-create probe file. Every individual write validates the directory
-again. Free space is deliberately not predicted because that check would become
-stale during processing.
+Create Copies resolves automatically to a `PixChisel Copies` subfolder when all
+ready sources share one parent directory. React derives that path without
+touching the filesystem and shows it as automatic; a native write creates it
+only after a transformed candidate is ready and eligible to be saved. A user can
+override it with the existing native directory dialog, and mixed-directory
+batches require that explicit choice. The selected override remains session-only.
+No general filesystem or shell plugin permission is granted. Before a batch
+starts, a narrow native preflight verifies that the selected destination, or the
+parent of an automatic destination, exists and accepts an exclusive-create probe
+file. Every individual write validates or creates the resolved directory again.
+Free space is deliberately not predicted because that check would become stale
+during processing.
 
 Opening the destination is also a narrow native command. It validates the saved
 directory and invokes Finder on macOS or Explorer on Windows; React cannot pass

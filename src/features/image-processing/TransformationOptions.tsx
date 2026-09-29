@@ -24,7 +24,9 @@ import {
   SAVE_MODE_OPTIONS,
   createDefaultOutputSettings,
   isFutureProcessingReady,
+  resolveCopyDestination,
   type OutputSettings,
+  type CopyDestination,
 } from "./output";
 import { createWriteImageRequest } from "./output";
 import {
@@ -113,7 +115,11 @@ export function TransformationOptions({
   const errors = validateBatchSettings(settings);
   const settingsAreValid = isBatchSettingsValid(settings);
   const readyImageCount = readyPaths.length;
-  const futureProcessingReady = isFutureProcessingReady(readyImageCount, settings, output);
+  const copyDestination = useMemo(
+    () => resolveCopyDestination(readyPaths, output.outputDirectory),
+    [output.outputDirectory, readyPaths],
+  );
+  const futureProcessingReady = isFutureProcessingReady(readyImageCount, settings, output, copyDestination);
   const completedCount = lastBatchPaths.filter((path) => isTerminalState(processingStates[path])).length;
   const progressPercentage = lastBatchPaths.length === 0
     ? 0
@@ -156,12 +162,16 @@ export function TransformationOptions({
   }
 
   async function startBatch(paths: string[], resetAll: boolean) {
-    if (isRunning || paths.length === 0 || !settingsAreValid || !isFutureProcessingReady(paths.length, settings, output)) return;
+    if (
+      isRunning ||
+      paths.length === 0 ||
+      !settingsAreValid ||
+      !isFutureProcessingReady(paths.length, settings, output, copyDestination)
+    ) return;
     if (output.saveMode === "createCopies") {
-      const directory = output.outputDirectory;
-      if (!directory) return;
+      if (!copyDestination) return;
       try {
-        await preflightOutputDirectory(directory);
+        await preflightOutputDirectory(copyDestination.preflightPath);
         setFolderError(null);
       } catch (error) {
         const message = normalizeOutputError(error);
@@ -185,7 +195,7 @@ export function TransformationOptions({
       await runBoundedBatch(
         paths,
         async (path) => {
-          const request = createWriteImageRequest(path, settings, output, workflow);
+          const request = createWriteImageRequest(path, settings, output, workflow, copyDestination);
           if (!request) throw { code: "writeFailed", message: "Output settings are incomplete." };
           return writeTransformedImage(
             request,
@@ -224,9 +234,7 @@ export function TransformationOptions({
       setIsCancelling(true);
       for (const path of lastBatchPaths) {
         const state = processingStates[path];
-        if (state?.status === "processing") {
-          onItemState(path, { status: "cancelling" });
-        } else if (!state || state.status === "ready") {
+        if (!isTerminalState(state)) {
           onItemState(path, { status: "cancelled" });
         }
       }
@@ -235,7 +243,7 @@ export function TransformationOptions({
           setStatusMessage("Cancellation requested. Active native work could not be interrupted.");
         });
       }
-      setStatusMessage("Cancelling. Active files will stop before saving when safe.");
+      setStatusMessage("Cancellation confirmed. Active native work is finishing safe cleanup without saving.");
     }
   }
 
@@ -254,9 +262,9 @@ export function TransformationOptions({
   }
 
   async function showOutputFolder() {
-    if (!output.outputDirectory) return;
+    if (!copyDestination) return;
     try {
-      await openOutputFolder(output.outputDirectory);
+      await openOutputFolder(copyDestination.path);
       setFolderError(null);
     } catch (error) {
       const message = normalizeOutputError(error);
@@ -345,6 +353,8 @@ export function TransformationOptions({
           <legend>Save</legend>
           <SaveDestinationControls
             output={output}
+            copyDestination={copyDestination}
+            canOpenDirectory={!copyDestination?.automatic || summary.written > 0}
             disabled={isRunning}
             onChooseDirectory={() => void chooseOutputDirectory()}
             onOpenDirectory={() => void showOutputFolder()}
@@ -362,7 +372,7 @@ export function TransformationOptions({
       {lastBatchPaths.length > 0 && (
         <div className="batch-progress" aria-live="polite">
           <div className="batch-progress__labels">
-            <span>{isRunning ? `${isCancelling ? "Cancelling" : "Processing"} ${completedCount} of ${lastBatchPaths.length}` : `${completedCount} of ${lastBatchPaths.length} complete`}</span>
+            <span>{isRunning ? `${isCancelling ? "Cancelled" : "Processing"} ${completedCount} of ${lastBatchPaths.length}` : `${completedCount} of ${lastBatchPaths.length} complete`}</span>
             <span>{progressPercentage}%</span>
           </div>
           <progress value={completedCount} max={lastBatchPaths.length} aria-label="Overall batch progress" />
@@ -373,11 +383,6 @@ export function TransformationOptions({
         <BatchResults summary={summary} workflow={workflow} />
       )}
 
-      <div className="privacy-note">
-        <img src={privacyShieldIcon} alt="" />
-        <span><strong>Processed locally</strong>Your images stay private and never get uploaded.</span>
-      </div>
-
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {statusMessage}
       </p>
@@ -385,24 +390,24 @@ export function TransformationOptions({
       <div className={`options-panel__action${batchComplete ? " options-panel__action--complete" : ""}`}>
         <span className="action-hint">
           {isRunning
-            ? isCancelling ? "Stopping active files safely" : "Active files will finish safely"
+            ? isCancelling ? "Cancellation confirmed — finishing safe cleanup" : "Active files will finish safely"
             : !settingsAreValid
             ? "Check the highlighted settings"
-            : output.saveMode === "createCopies" && !output.outputDirectory
-              ? "Choose an output folder to continue"
+            : output.saveMode === "createCopies" && !copyDestination
+              ? "Choose an output folder for images from multiple locations"
               : futureProcessingReady
                 ? "Ready for batch processing"
                 : "No valid images are ready"}
         </span>
         <div className="options-panel__buttons">
-          {isRunning && (
-            <button className="secondary-button" type="button" onClick={cancelBatch} disabled={isCancelling}>{isCancelling ? "Cancelling…" : "Cancel"}</button>
+          {isRunning && !isCancelling && (
+            <button className="secondary-button" type="button" onClick={cancelBatch}>Cancel</button>
           )}
           {!isRunning && retryPaths.length > 0 && (
             <button
               className="secondary-button"
               type="button"
-              disabled={!isFutureProcessingReady(retryPaths.length, settings, output)}
+              disabled={!isFutureProcessingReady(retryPaths.length, settings, output, copyDestination)}
               onClick={() => void startBatch(retryPaths, false)}
             >
               Retry Failed &amp; Cancelled
@@ -417,11 +422,18 @@ export function TransformationOptions({
           >
             {batchComplete
               ? `✓ Done — ${completedCount} ${completedCount === 1 ? "image" : "images"} processed`
+              : isRunning && isCancelling
+              ? "Cancelled — finishing cleanup"
               : isRunning
               ? `Chiseling ${completedCount} of ${lastBatchPaths.length}…`
               : `Chisel ${readyImageCount} ${readyImageCount === 1 ? "Image" : "Images"}`}
           </button>
         </div>
+      </div>
+
+      <div className="privacy-note">
+        <img src={privacyShieldIcon} alt="" />
+        <span><strong>Processed locally</strong>Your images stay private and never get uploaded.</span>
       </div>
     </section>
   );
@@ -429,6 +441,8 @@ export function TransformationOptions({
 
 interface SaveDestinationControlsProps {
   output: OutputSettings;
+  copyDestination: CopyDestination | null;
+  canOpenDirectory: boolean;
   disabled: boolean;
   onChooseDirectory: () => void;
   onOpenDirectory: () => void;
@@ -437,6 +451,8 @@ interface SaveDestinationControlsProps {
 
 export function SaveDestinationControls({
   output,
+  copyDestination,
+  canOpenDirectory,
   disabled,
   onChooseDirectory,
   onOpenDirectory,
@@ -458,12 +474,14 @@ export function SaveDestinationControls({
     </div>
     {output.saveMode === "createCopies" ? <div className="output-folder">
       <button className="secondary-button" type="button" onClick={onChooseDirectory} disabled={disabled}>
-        {output.outputDirectory ? "Change Folder" : "Choose Folder"}
+        {copyDestination ? "Change Folder" : "Choose Folder"}
       </button>
-      <span title={output.outputDirectory ?? undefined}>
-        {output.outputDirectory ? compactOutputDirectory(output.outputDirectory) : "No folder selected"}
+      <span title={copyDestination?.path}>
+        {copyDestination
+          ? `${compactOutputDirectory(copyDestination.path)}${copyDestination.automatic ? " (automatic)" : ""}`
+          : "Choose a folder for mixed locations"}
       </span>
-      {output.outputDirectory && <button className="text-button" type="button" disabled={disabled} onClick={onOpenDirectory}>
+      {copyDestination && canOpenDirectory && <button className="text-button" type="button" disabled={disabled} onClick={onOpenDirectory}>
         Open Output Folder
       </button>}
     </div> : <p className="save-destination__warning" role="note">

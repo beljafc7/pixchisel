@@ -6,6 +6,8 @@ use std::{
 
 use serde::Serialize;
 
+const AUTOMATIC_OUTPUT_FOLDER_NAME: &str = "PixChisel Copies";
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoverImagesError {
@@ -65,6 +67,13 @@ fn scan_directory(directory: &Path, images: &mut Vec<PathBuf>) -> Result<(), Dis
         }
         let path = entry.path();
         if file_type.is_dir() {
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(AUTOMATIC_OUTPUT_FOLDER_NAME)
+            {
+                continue;
+            }
             scan_directory(&path, images)?;
         } else if file_type.is_file() && has_supported_extension(&path) {
             images.push(path);
@@ -133,6 +142,7 @@ mod tests {
         directory.file("document.pdf");
         directory.file(".hidden.jpg");
         directory.file(".hidden/inside.png");
+        directory.file("PixChisel Copies/generated.png");
 
         let result = discover_image_paths(vec![directory.0.clone()]).unwrap();
         assert_eq!(result, vec![webp, png, jpg]);

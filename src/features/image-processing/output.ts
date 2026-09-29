@@ -14,8 +14,17 @@ export interface OutputSettings {
   saveMode: SaveMode;
 }
 
+export const AUTOMATIC_OUTPUT_FOLDER_NAME = "PixChisel Copies";
+
+export interface CopyDestination {
+  path: string;
+  preflightPath: string;
+  automatic: boolean;
+}
+
 export type WriteDestination =
   | { mode: "directory"; path: string }
+  | { mode: "automaticDirectory"; path: string }
   | { mode: "replaceOriginal" };
 
 export interface WriteImageRequest {
@@ -145,13 +154,39 @@ export function isFutureProcessingReady(
   readyImageCount: number,
   settings: BatchSettings,
   output: OutputSettings,
+  copyDestination: CopyDestination | null = null,
 ): boolean {
   return (
     readyImageCount > 0 &&
     isBatchSettingsValid(settings) &&
     isSaveMode(output.saveMode) &&
-    (output.saveMode === "replaceOriginals" || output.outputDirectory !== null)
+    (output.saveMode === "replaceOriginals" || copyDestination !== null)
   );
+}
+
+export function resolveCopyDestination(
+  sourcePaths: string[],
+  selectedDirectory: string | null,
+): CopyDestination | null {
+  if (selectedDirectory) {
+    return {
+      path: selectedDirectory,
+      preflightPath: selectedDirectory,
+      automatic: false,
+    };
+  }
+  if (sourcePaths.length === 0) return null;
+
+  const parents = sourcePaths.map(parentDirectory);
+  if (parents.some((parent) => parent === null)) return null;
+  const first = parents[0]!;
+  if (!parents.every((parent) => parent?.path === first.path)) return null;
+
+  return {
+    path: joinPath(first.path, first.separator, AUTOMATIC_OUTPUT_FOLDER_NAME),
+    preflightPath: first.path,
+    automatic: true,
+  };
 }
 
 export function createWriteImageRequest(
@@ -159,6 +194,7 @@ export function createWriteImageRequest(
   settings: BatchSettings,
   output: OutputSettings,
   operation: WorkflowMode,
+  copyDestination: CopyDestination | null = null,
 ): WriteImageRequest | null {
   if (!isSaveMode(output.saveMode)) {
     return null;
@@ -167,8 +203,11 @@ export function createWriteImageRequest(
   if (output.saveMode === "replaceOriginals") {
     destination = { mode: "replaceOriginal" };
   } else {
-    if (!output.outputDirectory) return null;
-    destination = { mode: "directory", path: output.outputDirectory };
+    if (!copyDestination) return null;
+    destination = {
+      mode: copyDestination.automatic ? "automaticDirectory" : "directory",
+      path: copyDestination.path,
+    };
   }
   return {
     sourcePath,
@@ -176,6 +215,24 @@ export function createWriteImageRequest(
     destination,
     operation,
   };
+}
+
+function parentDirectory(path: string): { path: string; separator: "/" | "\\" } | null {
+  const forward = path.lastIndexOf("/");
+  const backward = path.lastIndexOf("\\");
+  const index = Math.max(forward, backward);
+  if (index < 0) return null;
+  const separator = backward > forward ? "\\" : "/";
+  if (index === 0) return { path: separator, separator };
+  let parent = path.slice(0, index);
+  if (/^[A-Za-z]:$/.test(parent)) parent += separator;
+  return { path: parent, separator };
+}
+
+function joinPath(parent: string, separator: "/" | "\\", child: string): string {
+  return parent.endsWith("/") || parent.endsWith("\\")
+    ? `${parent}${child}`
+    : `${parent}${separator}${child}`;
 }
 
 export function compactOutputDirectory(directory: string): string {

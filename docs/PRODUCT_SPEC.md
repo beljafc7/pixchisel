@@ -148,6 +148,10 @@ cannot honor.
   Active work stops at the next safe checkpoint; WebP encoding can stop through
   libwebp's progress hook. Cancelled work never finalizes an output, and queued
   files become cancelled.
+- Cancellation updates every unfinished queue row immediately. If a codec cannot
+  interrupt an operation already in progress, the interface reports that safe
+  cleanup is finishing instead of leaving one row indefinitely in a cancelling
+  state; processing controls unlock after that native work exits without saving.
 - Lock queue mutation, import, output, and transformation controls while a batch
   is active.
 - Allow failed and cancelled items to be retried without reprocessing written or
@@ -161,9 +165,11 @@ started after cancellation becomes Cancelled.
 ### Output
 
 - Expose two save modes: Create Copies and Replace Originals.
-- Create Copies requires an explicitly selected output folder, leaves every
-  source untouched, flattens folder imports into that destination, and selects
-  the first available numbered filename when needed.
+- Create Copies leaves every source untouched. When all ready images share one
+  parent directory, it defaults to a `PixChisel Copies` subfolder there and lets
+  the user choose a different destination. Mixed-directory batches require an
+  explicitly selected output folder. Copies are flattened into the resolved
+  destination and use the first available numbered filename when needed.
 - Replace Originals requires no output folder. Every item uses its own source
   directory, including mixed-directory and recursively imported batches.
 - Display a concise warning that replacing originals cannot be undone.
@@ -173,12 +179,16 @@ started after cancellation becomes Cancelled.
   successful encoding.
 - Retain the selected directory and save mode only for the current session.
 - Default to Create Copies.
-- Verify a selected copy destination before starting a Create Copies batch.
-- Offer an Open Output Folder action after a destination has been selected.
+- Verify a selected copy destination, or the parent of an automatic destination,
+  before starting a Create Copies batch.
+- Create the automatic subfolder only when a transformed output will be written.
+- Offer an Open Output Folder action after the resolved destination exists.
 
 Copy filenames retain the source stem. JPEG normalizes to `.jpg`, PNG to `.png`,
 and WebP to `.webp`; keep-original uses the detected source format. Create Copies
-selects the first available numbered sibling such as `photo (1).webp`.
+selects the first available numbered sibling such as `photo (1).webp`. Recursive
+folder discovery skips PixChisel's generated `PixChisel Copies` directories so
+later imports do not pull generated outputs back into the source queue.
 
 Replace Originals never encodes directly over an existing destination. The complete
 encoded output is first written to a temporary file in the destination directory

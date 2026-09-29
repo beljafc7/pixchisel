@@ -126,6 +126,9 @@ performed.
   **Complete.**
 - Require a folder only for Create Copies and replace mixed-directory sources in
   their own locations. **Complete.**
+- Default same-directory Create Copies batches to a lazily created `PixChisel
+  Copies` subfolder while retaining manual selection for mixed sources.
+  **Complete.**
 - Make converted-target conflicts non-destructive and remove the source only
   after successful converted-file finalization. **Complete.**
 

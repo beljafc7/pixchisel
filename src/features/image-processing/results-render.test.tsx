@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ProcessingDetail } from "../image-import/components/ImageQueueList";
-import { BatchResults, SaveDestinationControls } from "./TransformationOptions";
+import { BatchResults, SaveDestinationControls, TransformationOptions } from "./TransformationOptions";
 import { summarizeBatch, type FileProcessingState } from "./batch";
 import type { WrittenImageResult } from "./output";
 
@@ -80,9 +80,12 @@ describe("save destination rendering", () => {
     const markup = renderToStaticMarkup(<SaveDestinationControls
       {...handlers}
       output={{ saveMode: "createCopies", outputDirectory: null }}
+      copyDestination={{ path: "/images/PixChisel Copies", preflightPath: "/images", automatic: true }}
+      canOpenDirectory={false}
     />);
-    expect(markup).toContain("Choose Folder");
-    expect(markup).toContain("No folder selected");
+    expect(markup).toContain("Change Folder");
+    expect(markup).toContain("PixChisel Copies (automatic)");
+    expect(markup).not.toContain("Open Output Folder");
     expect(markup).not.toContain("can&#x27;t be undone");
   });
 
@@ -90,10 +93,30 @@ describe("save destination rendering", () => {
     const markup = renderToStaticMarkup(<SaveDestinationControls
       {...handlers}
       output={{ saveMode: "replaceOriginals", outputDirectory: "/unused" }}
+      copyDestination={{ path: "/unused", preflightPath: "/unused", automatic: false }}
+      canOpenDirectory
     />);
     expect(markup).toContain("Original files will be replaced");
     expect(markup).toContain("can&#x27;t be undone");
     expect(markup).not.toContain("Choose Folder");
     expect(markup).not.toContain("Open Output Folder");
+  });
+});
+
+describe("sidebar content order", () => {
+  it("places the local-processing reassurance after the primary action", () => {
+    const markup = renderToStaticMarkup(<TransformationOptions
+      workflow="compress"
+      readyPaths={["/images/photo.jpg"]}
+      queuePaths={["/images/photo.jpg"]}
+      processingStates={{}}
+      onBatchStart={() => undefined}
+      onItemState={() => undefined}
+      onRunningChange={() => undefined}
+      onResultsInvalidated={() => undefined}
+      workspaceResetVersion={0}
+    />);
+
+    expect(markup.indexOf("Chisel 1 Image")).toBeLessThan(markup.indexOf("Processed locally"));
   });
 });
