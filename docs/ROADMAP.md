@@ -44,8 +44,8 @@ performed.
   in-memory in Phase 2.1 using statically built libwebp for lossy WebP.**
 - Implement quality and aspect-preserving resize behavior. **Complete in-memory
   in Phase 2.1.**
-- Apply the documented white JPEG transparency background and no-upscale policy.
-  **Complete in the native transformation pipeline.**
+- Apply the documented white JPEG transparency background and mode-specific
+  resize policy. **Complete in the native transformation pipeline.**
 - Add output directory selection and the three conflict policies. **Complete for
   the session-scoped single-image boundary in Phase 2.2.**
 - Implement safe native output writes. **Complete for single-image output in
@@ -127,11 +127,9 @@ performed.
   presets retained at 82/45.**
 - Replace conflict-oriented UI state with Create Copies and Replace Originals.
   **Complete.**
-- Require a folder only for Create Copies and replace mixed-directory sources in
-  their own locations. **Complete.**
 - Default same-directory Create Copies batches to a lazily created `PixChisel
-  Copies` subfolder while retaining manual selection for mixed sources.
-  **Complete.**
+  Copies` subfolder, while requiring one shared destination for mixed-directory
+  batches and allowing the user to reset an override. **Complete.**
 - Make converted-target conflicts non-destructive and remove the source only
   after successful converted-file finalization. **Complete.**
 
@@ -245,5 +243,6 @@ Windows alpha support, verify on a supported Windows installation:
 ## Post-V1 candidates
 
 AVIF, HEIC/HEIF, TIFF, JPEG XL, crop, watermark, metadata inspector, presets,
-recursive folder processing, watch folders, upscaling, and comparison tools will
-be evaluated after V1. Their order is intentionally undecided.
+recursive folder processing, watch folders, detail-enhancing upscaling, and
+comparison tools will be evaluated after V1. Their order is intentionally
+undecided.

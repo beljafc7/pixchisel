@@ -111,7 +111,9 @@ subject to this rule.
 - Resize by percentage.
 - Always preserve aspect ratio in V1.
 - Never produce zero or invalid dimensions.
-- Do not upscale by default.
+- Width, height, and percentage modes honor the requested dimensions even when
+  that enlarges the source. Fit within behaves as a maximum boundary and never
+  enlarges an image that already fits.
 - Preserve input format and use internal quality 92 for JPEG and WebP. PNG
   remains lossless.
 - Dimension values accept whole numbers from 1 through 32,768 pixels. Percentage
@@ -168,10 +170,11 @@ started after cancellation becomes Cancelled.
 
 - Expose two save modes: Create Copies and Replace Originals.
 - Create Copies leaves every source untouched. When all ready images share one
-  parent directory, it defaults to a `PixChisel Copies` subfolder there and lets
-  the user choose a different destination. Mixed-directory batches require an
-  explicitly selected output folder. Copies are flattened into the resolved
-  destination and use the first available numbered filename when needed.
+  parent directory, it defaults to a `PixChisel Copies` subfolder there and
+  allows an optional destination override. Mixed-directory batches require one
+  explicitly selected folder so all copies stay together. Re-selecting Create
+  Copies clears the override and returns to the automatic default when one is
+  available. Copies use the first available numbered filename when needed.
 - Replace Originals requires no output folder. Every item uses its own source
   directory, including mixed-directory and recursively imported batches.
 - Display a concise warning that replacing originals cannot be undone.
@@ -259,8 +262,8 @@ source code.
 ## Deferred features
 
 AVIF, HEIC/HEIF, TIFF, JPEG XL, crop, watermark, metadata inspector, presets,
-recursive folder processing, watch folders, upscaling, and image comparison tools
-are explicitly outside V1.
+recursive folder processing, watch folders, detail-enhancing upscaling, and image
+comparison tools are explicitly outside V1.
 
 ## V1 success criteria
 

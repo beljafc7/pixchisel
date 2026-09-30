@@ -9,6 +9,7 @@ import {
   isFutureProcessingReady,
   parseWriteImageResult,
   resolveCopyDestination,
+  resetCopyDestination,
   SAVE_MODE_OPTIONS,
 } from "./output";
 
@@ -48,39 +49,36 @@ describe("output settings", () => {
       automatic: true,
     });
     expect(isFutureProcessingReady(2, settings, output, automatic)).toBe(true);
-    expect(resolveCopyDestination(["/one/photo.jpg", "/two/logo.png"], null)).toBeNull();
-    expect(
-      isFutureProcessingReady(1, settings, {
-        ...output,
-        outputDirectory: "/images/output",
-      }, resolveCopyDestination([], "/images/output")),
-    ).toBe(true);
-    expect(
-      isFutureProcessingReady(0, settings, {
-        ...output,
-        outputDirectory: "/images/output",
-      }, resolveCopyDestination([], "/images/output")),
-    ).toBe(false);
+    expect(resolveCopyDestination(["/images/photo.jpg", "/other/logo.png"], null)).toBeNull();
+    const selected = resolveCopyDestination(["/images/photo.jpg", "/other/logo.png"], "/exports");
+    expect(selected).toEqual({ path: "/exports", preflightPath: "/exports", automatic: false });
+    expect(isFutureProcessingReady(2, settings, { ...output, outputDirectory: "/exports" }, selected)).toBe(true);
+    expect(isFutureProcessingReady(0, settings, output)).toBe(false);
     expect(isFutureProcessingReady(1, settings, {
       ...output,
       saveMode: "replaceOriginals",
     })).toBe(true);
   });
 
-  it("serializes directory and replace-original destination shapes", () => {
+  it("serializes automatic, selected-directory, and replace-original destinations", () => {
     const settings = createDefaultBatchSettings();
-    const selected = resolveCopyDestination([], "/images/output");
+    const automatic = resolveCopyDestination(["/images/source.png"], null);
     expect(
       createWriteImageRequest("/images/source.png", settings, {
-        outputDirectory: "/images/output",
+        outputDirectory: null,
         saveMode: "createCopies",
-      }, "compress", selected),
+      }, "compress", automatic),
     ).toEqual({
       sourcePath: "/images/source.png",
       settings,
-      destination: { mode: "directory", path: "/images/output" },
+      destination: { mode: "automaticDirectory", path: "/images/PixChisel Copies" },
       operation: "compress",
     });
+    const selected = resolveCopyDestination(["/images/source.png"], "/exports");
+    expect(createWriteImageRequest("/images/source.png", settings, {
+      outputDirectory: "/exports",
+      saveMode: "createCopies",
+    }, "compress", selected)).toMatchObject({ destination: { mode: "directory", path: "/exports" } });
     expect(createWriteImageRequest("/images/source.png", settings, {
       outputDirectory: null,
       saveMode: "replaceOriginals",
@@ -90,13 +88,13 @@ describe("output settings", () => {
       destination: { mode: "replaceOriginal" },
       operation: "resize",
     });
-    expect(createWriteImageRequest("/images/source.png", settings, {
+    expect(createWriteImageRequest("source.png", settings, {
       outputDirectory: null,
       saveMode: "createCopies",
     }, "compress")).toBeNull();
   });
 
-  it("serializes an automatic directory without treating it as a selected folder", () => {
+  it("serializes an automatic directory for Windows paths", () => {
     const settings = createDefaultBatchSettings();
     const output = createDefaultOutputSettings();
     const automatic = resolveCopyDestination(["C:\\images\\photo.jpg"], null);
@@ -107,6 +105,11 @@ describe("output settings", () => {
     });
     expect(createWriteImageRequest("C:\\images\\photo.jpg", settings, output, "compress", automatic))
       .toMatchObject({ destination: { mode: "automaticDirectory", path: automatic?.path } });
+  });
+
+  it("resets a manual copy folder when Create Copies is selected again", () => {
+    expect(resetCopyDestination({ saveMode: "createCopies", outputDirectory: "/exports" }))
+      .toEqual({ saveMode: "createCopies", outputDirectory: null });
   });
 
   it("preserves destination shapes through every workflow", () => {

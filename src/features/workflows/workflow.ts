@@ -28,7 +28,6 @@ export interface ResizeWorkflowSettings {
   maxWidth: number;
   maxHeight: number;
   percentage: number;
-  allowUpscaling: boolean;
 }
 
 export function createCompressSettings(preset: CompressionPreset): BatchSettings {
@@ -61,7 +60,7 @@ export function createResizeSettings(resize: ResizeWorkflowSettings): BatchSetti
       maxHeight: resize.maxHeight,
       percentage: resize.percentage,
     },
-    allowUpscaling: resize.allowUpscaling,
+    allowUpscaling: resize.mode !== "fit",
   };
 }
 

@@ -4,7 +4,6 @@ import {
   cancelProcessing,
   clearProcessingCancellation,
   createCancellationId,
-  openOutputFolder,
   preflightOutputDirectory,
   writeTransformedImage,
 } from "../../lib/native/output";
@@ -19,12 +18,12 @@ import {
 } from "./settings";
 import { isBatchSettingsValid, validateBatchSettings } from "./validation";
 import {
-  compactOutputDirectory,
   createSaveModeUpdate,
   SAVE_MODE_OPTIONS,
   createDefaultOutputSettings,
   isFutureProcessingReady,
   resolveCopyDestination,
+  resetCopyDestination,
   type OutputSettings,
   type CopyDestination,
 } from "./output";
@@ -69,8 +68,7 @@ const conversionFormats: Array<{ value: ConversionFormat; label: string }> = [
   { value: "webp", label: "WebP" },
 ];
 
-const resizeModes: Array<{ value: ResizeMode; label: string }> = [
-  { value: "none", label: "No resize" },
+const resizeModes: Array<{ value: Exclude<ResizeMode, "none">; label: string }> = [
   { value: "width", label: "Width" },
   { value: "height", label: "Height" },
   { value: "fit", label: "Fit within" },
@@ -109,7 +107,6 @@ export function TransformationOptions({
       maxWidth: draftSettings.resize.maxWidth,
       maxHeight: draftSettings.resize.maxHeight,
       percentage: draftSettings.resize.percentage,
-      allowUpscaling: draftSettings.allowUpscaling,
     });
   }, [compressionPreset, conversionFormat, draftSettings, workflow]);
   const errors = validateBatchSettings(settings);
@@ -261,18 +258,6 @@ export function TransformationOptions({
     }
   }
 
-  async function showOutputFolder() {
-    if (!copyDestination) return;
-    try {
-      await openOutputFolder(copyDestination.path);
-      setFolderError(null);
-    } catch (error) {
-      const message = normalizeOutputError(error);
-      setFolderError(message);
-      setStatusMessage(message);
-    }
-  }
-
   function updateNumber(key: ResizeValueKey, value: number) {
     updateSettings({ type: "setResizeValue", key, value });
   }
@@ -324,7 +309,10 @@ export function TransformationOptions({
               value={draftSettings.resize.mode === "none" ? "width" : draftSettings.resize.mode}
               disabled={isRunning}
               onChange={(event) =>
-                updateSettings({ type: "setResizeMode", value: event.currentTarget.value as ResizeMode })
+                updateSettings({
+                  type: "setResizeMode",
+                  value: event.currentTarget.value as Exclude<ResizeMode, "none">,
+                })
               }
             >
               {resizeModes.map((mode) => (
@@ -333,20 +321,6 @@ export function TransformationOptions({
             </select>
             <ResizeFields settings={{ ...draftSettings, resize: { ...draftSettings.resize, mode: draftSettings.resize.mode === "none" ? "width" : draftSettings.resize.mode } }} errors={errors} updateNumber={updateNumber} disabled={isRunning} />
           </div>
-          <div className="option-checks">
-            <label className="check-control">
-              <input
-                type="checkbox"
-                checked={draftSettings.allowUpscaling}
-                disabled={isRunning}
-                onChange={(event) =>
-                  updateSettings({ type: "setAllowUpscaling", value: event.currentTarget.checked })
-                }
-              />
-              Allow upscaling
-            </label>
-            <span className="field-note">Smaller images won't be enlarged.</span>
-          </div>
         </fieldset>}
 
         <fieldset className="option-group option-group--wide output-options">
@@ -354,10 +328,14 @@ export function TransformationOptions({
           <SaveDestinationControls
             output={output}
             copyDestination={copyDestination}
-            canOpenDirectory={!copyDestination?.automatic || summary.written > 0}
             disabled={isRunning}
             onChooseDirectory={() => void chooseOutputDirectory()}
-            onOpenDirectory={() => void showOutputFolder()}
+            onResetCopyDestination={() => {
+              if (!output.outputDirectory) return;
+              invalidateResults();
+              setOutput(resetCopyDestination);
+              setFolderError(null);
+            }}
             onSaveModeChange={(value) => {
               const updateSaveMode = createSaveModeUpdate(value);
               invalidateResults();
@@ -394,7 +372,7 @@ export function TransformationOptions({
             : !settingsAreValid
             ? "Check the highlighted settings"
             : output.saveMode === "createCopies" && !copyDestination
-              ? "Choose an output folder for images from multiple locations"
+              ? "Select one output folder for images from different locations"
               : futureProcessingReady
                 ? "Ready for batch processing"
                 : "No valid images are ready"}
@@ -442,20 +420,18 @@ export function TransformationOptions({
 interface SaveDestinationControlsProps {
   output: OutputSettings;
   copyDestination: CopyDestination | null;
-  canOpenDirectory: boolean;
   disabled: boolean;
   onChooseDirectory: () => void;
-  onOpenDirectory: () => void;
+  onResetCopyDestination: () => void;
   onSaveModeChange: (value: string) => void;
 }
 
 export function SaveDestinationControls({
   output,
   copyDestination,
-  canOpenDirectory,
   disabled,
   onChooseDirectory,
-  onOpenDirectory,
+  onResetCopyDestination,
   onSaveModeChange,
 }: SaveDestinationControlsProps) {
   return <div className="save-destination">
@@ -467,26 +443,38 @@ export function SaveDestinationControls({
           value={option.value}
           checked={output.saveMode === option.value}
           disabled={disabled}
+          onClick={() => {
+            if (option.value === "createCopies" && output.saveMode === "createCopies") {
+              onResetCopyDestination();
+            }
+          }}
           onChange={(event) => onSaveModeChange(event.currentTarget.value)}
         />
         <span>{option.label}</span>
       </label>)}
     </div>
-    {output.saveMode === "createCopies" ? <div className="output-folder">
-      <button className="secondary-button" type="button" onClick={onChooseDirectory} disabled={disabled}>
-        {copyDestination ? "Change Folder" : "Choose Folder"}
-      </button>
-      <span title={copyDestination?.path}>
-        {copyDestination
-          ? `${compactOutputDirectory(copyDestination.path)}${copyDestination.automatic ? " (automatic)" : ""}`
-          : "Choose a folder for mixed locations"}
-      </span>
-      {copyDestination && canOpenDirectory && <button className="text-button" type="button" disabled={disabled} onClick={onOpenDirectory}>
-        Open Output Folder
-      </button>}
-    </div> : <p className="save-destination__warning" role="note">
-      Original files will be replaced. This can't be undone.
-    </p>}
+    {output.saveMode === "createCopies" ? <>
+      <div className="output-folder">
+        <button className="secondary-button" type="button" onClick={onChooseDirectory} disabled={disabled}>
+          {copyDestination && !copyDestination.automatic ? "Change Folder" : "Select Folder"}
+        </button>
+      </div>
+      <div className="save-destination__details" role="note">
+        <p>
+          {copyDestination?.automatic
+            ? "Creates copies in a PixChisel Copies subfolder next to the originals. Original files stay unchanged."
+            : copyDestination
+              ? "Creates copies in the selected folder. Original files stay unchanged."
+              : "Images come from different folders. Select one folder to keep all copies together."}
+        </p>
+        {copyDestination && !copyDestination.automatic && <div className="output-path">
+          <span>Output folder</span>
+          <strong title={copyDestination.path}>{copyDestination.path}</strong>
+        </div>}
+      </div>
+    </> : <div className="save-destination__details save-destination__details--warning" role="note">
+      <p>Replaces the original files. This can't be undone.</p>
+    </div>}
   </div>;
 }
 
@@ -566,22 +554,49 @@ interface NumericInputProps {
 }
 
 function NumericInput({ label, value, suffix, error, onChange, ...inputProps }: NumericInputProps) {
-  const errorId = `${label.toLowerCase().replace(/ /g, "-")}-error`;
+  const inputId = `${label.toLowerCase().replace(/ /g, "-")}-input`;
+  const errorId = `${inputId}-error`;
+  const displayValue = Number.isNaN(value) ? "" : value;
+
+  function stepValue(direction: 1 | -1) {
+    const startingValue = Number.isNaN(value) ? inputProps.min : value;
+    onChange(Math.min(inputProps.max, Math.max(inputProps.min, startingValue + direction)));
+  }
+
   return (
-    <label className={`numeric-field${error ? " numeric-field--error" : ""}`}>
-      <span className="sr-only">{label}</span>
-      <span className="numeric-field__input">
+    <div className={`numeric-field${error ? " numeric-field--error" : ""}`}>
+      <label className="sr-only" htmlFor={inputId}>{label}</label>
+      <div className="numeric-field__input">
         <input
+          id={inputId}
           type="number"
-          value={Number.isNaN(value) ? "" : value}
+          value={displayValue}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
           {...inputProps}
         />
-        <span>{suffix}</span>
-      </span>
+        <span className="numeric-field__suffix">{suffix}</span>
+        <span className="numeric-field__stepper">
+          <button
+            type="button"
+            aria-label={`Increase ${label.toLowerCase()}`}
+            disabled={inputProps.disabled || (!Number.isNaN(value) && value >= inputProps.max)}
+            onClick={() => stepValue(1)}
+          >
+            <span aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Decrease ${label.toLowerCase()}`}
+            disabled={inputProps.disabled || (!Number.isNaN(value) && value <= inputProps.min)}
+            onClick={() => stepValue(-1)}
+          >
+            <span aria-hidden="true" />
+          </button>
+        </span>
+      </div>
       {error && <span className="field-error" id={errorId}>{error}</span>}
-    </label>
+    </div>
   );
 }

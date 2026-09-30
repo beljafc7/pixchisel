@@ -150,6 +150,10 @@ export function createSaveModeUpdate(value: string): (current: OutputSettings) =
   return (current) => ({ ...current, saveMode: value });
 }
 
+export function resetCopyDestination(current: OutputSettings): OutputSettings {
+  return { ...current, outputDirectory: null };
+}
+
 export function isFutureProcessingReady(
   readyImageCount: number,
   settings: BatchSettings,
@@ -233,12 +237,6 @@ function joinPath(parent: string, separator: "/" | "\\", child: string): string 
   return parent.endsWith("/") || parent.endsWith("\\")
     ? `${parent}${child}`
     : `${parent}${separator}${child}`;
-}
-
-export function compactOutputDirectory(directory: string): string {
-  const normalized = directory.replace(/[\\/]+$/, "");
-  const finalSegment = normalized.split(/[\\/]/).pop();
-  return finalSegment || directory;
 }
 
 function isSaveMode(value: string): value is SaveMode {

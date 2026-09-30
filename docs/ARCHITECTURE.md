@@ -159,7 +159,7 @@ used.
 
 Phase 1.4 introduces one frontend-owned `BatchSettings` value for the complete
 batch. It contains only JSON-serializable primitives: output format, quality, a
-resize mode plus its numeric values, allow-upscaling, and remove-metadata. A pure
+resize mode plus its numeric values, derived allow-upscaling, and remove-metadata. A pure
 reducer owns every update, and pure validation derives field errors and request
 readiness. UI controls do not maintain competing copies of these values.
 
@@ -193,9 +193,10 @@ path.
 
 Resize calculation is pure. Width and height modes derive the other dimension;
 fit chooses the limiting axis and never crops; percentage scales both axes.
-Derived dimensions use integer half-up rounding and clamp positive results to at
-least one pixel. When upscaling is disabled, any enlargement resolves to the
-oriented source dimensions. Targets cannot exceed 32,768 pixels on either axis.
+Width, height, and percentage enable upscaling implicitly so their requested
+target is honored. Fit disables upscaling because its dimensions are maximum
+bounds. Derived dimensions use integer half-up rounding and clamp positive
+results to at least one pixel. Targets cannot exceed 32,768 pixels on either axis.
 WebP has a stricter codec limit of 16,383 pixels per axis and returns a typed
 format-specific error above it. Pixel resampling uses Lanczos3.
 
@@ -302,16 +303,17 @@ as Already Optimized and excludes it from written-byte savings totals. This
 applies uniformly to JPEG, PNG, and WebP; Convert and Resize remain allowed to
 grow.
 
-Create Copies resolves automatically to a `PixChisel Copies` subfolder when all
-ready sources share one parent directory. React derives that path without
-touching the filesystem and shows it as automatic; a native write creates it
-only after a transformed candidate is ready and eligible to be saved. A user can
-override it with the existing native directory dialog, and mixed-directory
-batches require that explicit choice. The selected override remains session-only.
-No general filesystem or shell plugin permission is granted. Before a batch
-starts, a narrow native preflight verifies that the selected destination, or the
-parent of an automatic destination, exists and accepts an exclusive-create probe
-file. Every individual write validates or creates the resolved directory again.
+Create Copies resolves automatically to one `PixChisel Copies` subfolder when
+all ready sources share a parent directory. React derives that path without
+touching the filesystem; a native write creates it only after a transformed
+candidate is ready and eligible to be saved. The user can override it with the
+native directory dialog. Mixed-directory batches require that explicit shared
+destination, preventing outputs from being scattered across source folders.
+Selecting Create Copies again clears the override and restores the automatic
+destination when available. No general filesystem or shell plugin permission is
+granted. Before a batch starts, a narrow native preflight verifies the resolved
+destination or its parent exists and accepts an exclusive-create probe file.
+Every individual write validates or creates the resolved directory again.
 Free space is deliberately not predicted because that check would become stale
 during processing.
 
@@ -389,7 +391,7 @@ total produces a zero percentage, while larger output is described as larger
 rather than negative savings.
 
 Completed states remain visible until the queue or batch configuration changes.
-Changing format, quality, resize, upscaling, output directory, or save mode
+Changing format, quality, resize, output directory, or save mode
 clears all prior row results and the summary so they cannot appear to describe
 the new configuration. Removing one item removes only that item's result and
 recalculates the summary. A new full Chisel action resets processing state and

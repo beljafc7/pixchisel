@@ -72,33 +72,55 @@ describe("save destination rendering", () => {
   const handlers = {
     disabled: false,
     onChooseDirectory: () => undefined,
-    onOpenDirectory: () => undefined,
+    onResetCopyDestination: () => undefined,
     onSaveModeChange: () => undefined,
   };
 
-  it("shows and requires an output folder only when creating copies", () => {
+  it("explains the automatic copy folder and offers an optional folder selector", () => {
     const markup = renderToStaticMarkup(<SaveDestinationControls
       {...handlers}
       output={{ saveMode: "createCopies", outputDirectory: null }}
       copyDestination={{ path: "/images/PixChisel Copies", preflightPath: "/images", automatic: true }}
-      canOpenDirectory={false}
+    />);
+    expect(markup).toContain("Creates copies in a PixChisel Copies subfolder next to the originals.");
+    expect(markup).toContain("Original files stay unchanged.");
+    expect(markup).toContain("Select Folder");
+    expect(markup).not.toContain("Change Folder");
+    expect(markup).not.toContain("can&#x27;t be undone");
+  });
+
+  it("shows the selected shared folder path for mixed-source copies", () => {
+    const markup = renderToStaticMarkup(<SaveDestinationControls
+      {...handlers}
+      output={{ saveMode: "createCopies", outputDirectory: "/exports/shared" }}
+      copyDestination={{ path: "/exports/shared", preflightPath: "/exports/shared", automatic: false }}
     />);
     expect(markup).toContain("Change Folder");
-    expect(markup).toContain("PixChisel Copies (automatic)");
-    expect(markup).not.toContain("Open Output Folder");
-    expect(markup).not.toContain("can&#x27;t be undone");
+    expect(markup).toContain("Output folder");
+    expect(markup).toContain("/exports/shared");
+  });
+
+  it("requires one shared destination when copy sources come from different folders", () => {
+    const markup = renderToStaticMarkup(<SaveDestinationControls
+      {...handlers}
+      output={{ saveMode: "createCopies", outputDirectory: null }}
+      copyDestination={null}
+    />);
+    expect(markup).toContain("Images come from different folders.");
+    expect(markup).toContain("Select one folder to keep all copies together.");
+    expect(markup).toContain("Select Folder");
   });
 
   it("renders the destructive warning and no folder control when replacing originals", () => {
     const markup = renderToStaticMarkup(<SaveDestinationControls
       {...handlers}
-      output={{ saveMode: "replaceOriginals", outputDirectory: "/unused" }}
-      copyDestination={{ path: "/unused", preflightPath: "/unused", automatic: false }}
-      canOpenDirectory
+      output={{ saveMode: "replaceOriginals", outputDirectory: null }}
+      copyDestination={null}
     />);
-    expect(markup).toContain("Original files will be replaced");
+    expect(markup).toContain("Replaces the original files");
     expect(markup).toContain("can&#x27;t be undone");
-    expect(markup).not.toContain("Choose Folder");
+    expect(markup).not.toContain("Select Folder");
+    expect(markup).not.toContain("Change Folder");
     expect(markup).not.toContain("Open Output Folder");
   });
 });

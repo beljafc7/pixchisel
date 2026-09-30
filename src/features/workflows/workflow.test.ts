@@ -37,8 +37,13 @@ describe("workflow settings adapters", () => {
     for (const mode of ["width", "height", "fit", "percentage"] as const) {
       expect(createResizeSettings({
         mode, width: 800, height: 600, maxWidth: 1200, maxHeight: 900,
-        percentage: 50, allowUpscaling: false,
-      })).toMatchObject({ outputFormat: "original", quality: RESIZE_QUALITY, resize: { mode } });
+        percentage: 50,
+      })).toMatchObject({
+        outputFormat: "original",
+        quality: RESIZE_QUALITY,
+        resize: { mode },
+        allowUpscaling: mode !== "fit",
+      });
     }
   });
 

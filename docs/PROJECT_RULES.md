@@ -100,8 +100,8 @@ Paths and user input must be validated in Rust before filesystem work begins.
 
 V1 includes JPEG, PNG, and WebP output. AVIF, HEIC/HEIF, TIFF, JPEG XL, crop,
 watermarks, metadata inspection, presets, recursive folders, watch folders,
-upscaling, and comparison tools are deferred. Their future status is not a reason
-to build extension systems during V1.
+detail-enhancing upscaling, and comparison tools are deferred. Their future
+status is not a reason to build extension systems during V1.
 
 ## Definition of done
 
