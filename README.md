@@ -30,7 +30,7 @@
 ## Download
 
 Download the latest available version from
-[GitHub Releases](https://github.com/beljafc7/pixchisel/releases).
+[Download PixChisel for macOS](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel_0.5.0_x64.dmg)
 
 PixChisel 0.5.0 is currently available as a macOS Intel build. It also runs on
 Apple Silicon through Rosetta. Native Apple Silicon and Windows downloads are
