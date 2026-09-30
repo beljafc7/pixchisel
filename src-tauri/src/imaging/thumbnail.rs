@@ -13,6 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 const THUMBNAIL_BOUND: u32 = 128;
+const STALE_SESSION_AGE_NANOS: u128 = 24 * 60 * 60 * 1_000_000_000;
 
 #[derive(Debug, Clone)]
 struct CachedThumbnail {
@@ -40,7 +41,9 @@ pub struct ThumbnailCache(Arc<ThumbnailCacheInner>);
 impl ThumbnailCache {
     pub fn new(app: &AppHandle) -> io::Result<Self> {
         let cache_directory = app.path().app_cache_dir().map_err(io::Error::other)?;
-        Self::new_in(cache_directory.join("thumbnails"))
+        let thumbnail_root = cache_directory.join("thumbnails");
+        let _ = prune_stale_thumbnail_sessions(&thumbnail_root, SystemTime::now());
+        Self::new_in(thumbnail_root)
     }
 
     fn new_in(root: PathBuf) -> io::Result<Self> {
@@ -113,6 +116,43 @@ impl ThumbnailCache {
 
         Ok(())
     }
+}
+
+fn prune_stale_thumbnail_sessions(root: &Path, now: SystemTime) -> io::Result<()> {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let now_nanos = now
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let Some(created_nanos) = session_timestamp(&entry.file_name()) else {
+            continue;
+        };
+        if now_nanos.saturating_sub(created_nanos) < STALE_SESSION_AGE_NANOS {
+            continue;
+        }
+        let _ = fs::remove_dir_all(entry.path());
+    }
+
+    Ok(())
+}
+
+fn session_timestamp(name: &std::ffi::OsStr) -> Option<u128> {
+    let name = name.to_str()?;
+    let (process_id, timestamp) = name.split_once('-')?;
+    process_id.parse::<u32>().ok()?;
+    timestamp.parse::<u128>().ok()
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -317,11 +357,15 @@ mod tests {
         fs,
         path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, UNIX_EPOCH},
     };
 
     use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
 
-    use super::{generate_thumbnail_files, make_thumbnail, ThumbnailCache, ThumbnailResult};
+    use super::{
+        generate_thumbnail_files, make_thumbnail, prune_stale_thumbnail_sessions, ThumbnailCache,
+        ThumbnailResult,
+    };
 
     static NEXT_TEST_CACHE: AtomicU64 = AtomicU64::new(0);
 
@@ -333,6 +377,34 @@ mod tests {
         ));
         let cache = ThumbnailCache::new_in(root.clone()).expect("create thumbnail cache");
         (root, cache)
+    }
+
+    #[test]
+    fn startup_prunes_only_stale_thumbnail_sessions() {
+        let number = NEXT_TEST_CACHE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "pixchisel-thumbnail-prune-tests-{}-{number}",
+            std::process::id()
+        ));
+        let now = UNIX_EPOCH + Duration::from_secs(3 * 24 * 60 * 60);
+        let stale = root.join("100-0");
+        let recent_timestamp = (now - Duration::from_secs(60 * 60))
+            .duration_since(UNIX_EPOCH)
+            .expect("recent session timestamp")
+            .as_nanos();
+        let recent = root.join(format!("101-{recent_timestamp}"));
+        let unrelated = root.join("user-content");
+        for directory in [&stale, &recent, &unrelated] {
+            fs::create_dir_all(directory).expect("create cache fixture");
+            fs::write(directory.join("thumbnail.png"), b"cached").expect("write cache fixture");
+        }
+
+        prune_stale_thumbnail_sessions(&root, now).expect("prune stale thumbnail sessions");
+
+        assert!(!stale.exists());
+        assert!(recent.exists());
+        assert!(unrelated.exists());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -425,9 +425,10 @@ Each application run creates a unique directory below
 session, preventing regeneration while an item remains active. Removing an item
 releases its cached file; Clear All releases all known files. The cache directory
 is also removed when managed native state is dropped during a normal exit.
-Thumbnails abandoned by an abnormal process termination may remain, but startup
-does not read or depend on any previous session directory. A simple stale-session
-prune can be added later if observed cache growth warrants it.
+Thumbnail sessions abandoned by an abnormal process termination are pruned on a
+later startup once they are more than 24 hours old. Recent session directories
+are retained so launching another instance cannot disrupt its active previews.
+Startup never reads or depends on thumbnail contents from a previous session.
 
 React receives only small cache paths and renders them with Tauri's asset
 protocol. The protocol is enabled with the narrow static scope
