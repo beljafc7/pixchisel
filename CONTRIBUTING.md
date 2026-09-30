@@ -12,7 +12,8 @@ Thank you for helping improve PixChisel.
 
 ## Development
 
-Install the prerequisites listed in the [README](README.md), then run:
+Install the prerequisites listed in the
+[Technical README](TECHNICAL_README.md), then run:
 
 ```sh
 npm install
