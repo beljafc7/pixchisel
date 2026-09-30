@@ -64,20 +64,16 @@ Paths and user input must be validated in Rust before filesystem work begins.
 
 ## Licensing and distribution
 
-- PixChisel's application license model is **Proprietary Freeware**.
-- Free use: yes.
-- Personal, educational, professional, and business/commercial use of the
-  application as a tool: yes.
-- Open source: no.
-- Modified redistribution, resale, rebranding, white-labeling, and trademark
-  rights: not granted.
-- The canonical PixChisel source repository is intended to remain private.
-- Public distribution is binary-only and comes from official PixChisel sources.
-  A release includes the compiled application or installer, the PixChisel
-  license, and all required third-party notices and license texts. Source code is
-  not part of the intended public distribution.
+- PixChisel is free and open-source software under **GNU GPL v3.0 only**.
+- Personal, educational, professional, and commercial use is permitted under
+  the GPL.
+- Modified distributions must provide corresponding source code under GPL v3.0.
+- Public releases include source code, installers, the GPL license, and all
+  required third-party notices and license texts.
+- The PixChisel name and logo identify official releases. Modified products must
+  not imply endorsement or present themselves as official PixChisel builds.
 - Third-party code retains its original license. Never present a dependency's
-  MIT, Apache, BSD, or other license as the PixChisel application license.
+  MIT, Apache, BSD, or other license as covering PixChisel itself.
 - Final public-release terms and the complete target-specific dependency notice
   bundle must be reviewed before broad distribution. Project documentation
   records licensing intent and does not claim legal review.

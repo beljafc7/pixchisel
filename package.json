@@ -1,8 +1,18 @@
 {
   "name": "pixchisel",
   "private": true,
-  "license": "UNLICENSED",
+  "description": "A privacy-first desktop image converter, compressor, and resizer.",
+  "license": "GPL-3.0-only",
   "version": "0.5.0",
+  "author": "Johny Fandino",
+  "homepage": "https://github.com/beljafc7/pixchisel#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beljafc7/pixchisel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beljafc7/pixchisel/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +25,9 @@
     "version:sync": "node scripts/version.mjs sync",
     "version:check": "node scripts/version.mjs check",
     "version": "npm run version:sync && npm run version:check",
+    "licenses:generate:npm": "node scripts/generate-npm-licenses.mjs",
+    "licenses:generate:rust": "cargo about generate --manifest-path src-tauri/Cargo.toml --locked --fail --output-file THIRD_PARTY_LICENSES.html src-tauri/about.hbs",
+    "licenses:generate": "npm run licenses:generate:npm && npm run licenses:generate:rust",
     "release:patch": "npm version patch --no-git-tag-version",
     "release:minor": "npm version minor --no-git-tag-version",
     "release:major": "npm version major --no-git-tag-version"
@@ -34,5 +47,5 @@
     "vitest": "^3.2.4",
     "@tauri-apps/cli": "^2"
   },
-  "packageManager": "pnpm@11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620"
+  "packageManager": "npm@10.9.2"
 }

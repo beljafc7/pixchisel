@@ -1,7 +1,11 @@
 [package]
 name = "pixchisel"
 version = "0.5.0"
-description = "A private, local image conversion and optimization utility"
+description = "A privacy-first local image conversion and optimization utility"
+license = "GPL-3.0-only"
+authors = ["Johny Fandino"]
+homepage = "https://github.com/beljafc7/pixchisel"
+repository = "https://github.com/beljafc7/pixchisel"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

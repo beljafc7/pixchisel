@@ -21,7 +21,14 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "font-src": "'self' data:",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "object-src": "'none'",
+        "style-src": "'self' 'unsafe-inline'"
+      },
       "assetProtocol": {
         "enable": true,
         "scope": [
@@ -33,6 +40,23 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "GraphicsAndDesign",
+    "copyright": "Copyright © 2026 Johny Fandino",
+    "homepage": "https://github.com/beljafc7/pixchisel",
+    "license": "GPL-3.0-only",
+    "licenseFile": "../LICENSE",
+    "publisher": "Johny Fandino",
+    "shortDescription": "Convert, compress, and resize images locally.",
+    "longDescription": "PixChisel is a privacy-first desktop utility for converting, compressing, and resizing images without uploading them.",
+    "resources": {
+      "../LICENSE": "licenses/PIXCHISEL-GPL-3.0.txt",
+      "../THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md",
+      "../THIRD_PARTY_LICENSES.html": "licenses/THIRD_PARTY_LICENSES.html",
+      "../THIRD_PARTY_NPM_LICENSES.html": "licenses/THIRD_PARTY_NPM_LICENSES.html",
+      "../licenses/libwebp-COPYING.txt": "licenses/libwebp-COPYING.txt",
+      "../licenses/libdeflate-COPYING.txt": "licenses/libdeflate-COPYING.txt",
+      "../TRADEMARKS.md": "licenses/TRADEMARKS.md"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

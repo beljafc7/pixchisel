@@ -238,17 +238,15 @@ folder.
 
 ## Licensing model
 
-PixChisel is proprietary freeware. People and businesses may download and use
-the application free of charge for personal, educational, professional, and
-commercial work, including processing images for clients or internal business
-use. PixChisel is not open source. The application license does not grant rights
-to reuse source code, redistribute modified builds, resell or rebrand the
-software, create derivative distributions, or use PixChisel branding.
+PixChisel is free and open-source software under GNU GPL v3.0 only. People and
+businesses may use, study, modify, and redistribute it under those terms,
+including for commercial work. Anyone distributing a modified build must make
+its corresponding source available under GPL v3.0.
 
-V1 installers are distributed only through official PixChisel sources. Public
-packages contain compiled application binaries, the PixChisel license, and all
-required third-party notices and license texts; they do not contain PixChisel
-source code.
+Official installers are published through official PixChisel sources with the
+corresponding source code, GPL license, and required third-party notices. GPL
+does not grant permission to imply endorsement or use PixChisel branding for a
+modified product.
 
 ## Experience requirements
 

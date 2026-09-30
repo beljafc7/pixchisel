@@ -520,17 +520,17 @@ required native capabilities and granted the narrowest practical permissions.
 
 ## Release and license boundary
 
-The private repository contains proprietary PixChisel source, original artwork,
-branding, and documentation alongside third-party dependencies under their own
-licenses. A dependency's open-source license applies only to that dependency and
-does not license the PixChisel application or repository.
+PixChisel source code and documentation are released under GNU GPL v3.0 only.
+Third-party dependencies remain under their respective licenses. The PixChisel
+name and logo identify the official project; GPL does not grant permission to
+imply endorsement or present a modified product as an official release.
 
-Intended public artifacts are compiled macOS or Windows applications/installers,
-the PixChisel license, and a target-specific third-party notice bundle with all
-required license texts and attributions. Source code is outside the public
-distribution. Release preparation must derive the dependency inventory from the
-locked production graph for each target, including statically linked libwebp,
-rather than treating a hand-maintained summary as exhaustive.
+Official macOS and Windows installers must be accompanied by equivalent access
+to the corresponding source, the GPL license, and a target-specific third-party
+notice bundle with all required texts and attributions. Release preparation must
+derive the dependency inventory from the locked production graph for each target,
+including statically linked libwebp, rather than treating a hand-maintained
+summary as exhaustive.
 
 ## Testing strategy
 

@@ -1,0 +1,34 @@
+# License choices used to generate the release-time Rust dependency notice.
+accepted = [
+  "Apache-2.0",
+  "MIT",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "IJG",
+  "Unicode-3.0",
+  "Zlib",
+  "BSL-1.0",
+  "CC0-1.0",
+  "Unlicense",
+  "MPL-2.0",
+  "OpenSSL",
+  "GPL-3.0-only",
+]
+
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+ignore-dev-dependencies = true
+
+workarounds = [
+  "bitvec",
+  "chrono",
+  "cocoa",
+  "gtk",
+  "ring",
+  "rustls",
+]

@@ -10,8 +10,8 @@ future features should not be mixed silently.
 - Establish product, architecture, and engineering rules.
 - Create the minimal PixChisel application shell.
 - Confirm frontend and Rust builds.
-- Establish proprietary-freeware licensing intent, private-source policy, and
-  initial third-party notice requirements. **Complete in Phase 2.6.1.**
+- Establish GPL v3.0 open-source licensing, trademark boundaries, and initial
+  third-party notice requirements. **Complete for the 0.5.0 release.**
 
 ## Phase 1 — Import and inspection
 
@@ -204,8 +204,8 @@ knowledge.
 - Audit Tauri permissions, CSP, dependencies, and network behavior.
 - Validate memory use, concurrency, and large-file behavior.
 - Verify packaged macOS and Windows builds.
-- Complete legal review of the proprietary freeware terms and document supported
-  OS versions.
+- Complete legal review of the GPL v3.0 release terms, trademark policy, and
+  supported OS versions.
 - Generate and package complete target-specific third-party license inventories
   and texts from the locked release dependencies.
 - Prepare signing, notarization, installer, and release documentation.

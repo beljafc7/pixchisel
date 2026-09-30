@@ -1,101 +1,124 @@
-# PixChisel
+<p align="center">
+  <img src="assets/branding/pixchisel-logo.png" alt="PixChisel" width="720">
+</p>
 
-PixChisel is a free, privacy-first desktop utility for converting, compressing,
-and resizing images on macOS and Windows.
+<p align="center">
+  <strong>Convert. Compress. Resize. Locally.</strong>
+</p>
 
-> Convert. Compress. Resize. Locally.
+<p align="center">
+  A free, privacy-first desktop image utility. No uploads, accounts, cloud
+  storage, or telemetry.
+</p>
 
-PixChisel is designed around a short workflow: add images, adjust options,
-process, and review the result. Image data stays on the user's device. The app
-has no account system, backend, cloud storage, or telemetry by default.
+<p align="center">
+  <a href="https://github.com/beljafc7/pixchisel/releases">Download PixChisel</a>
+  ·
+  <a href="https://github.com/beljafc7/pixchisel/issues">Report an issue</a>
+  ·
+  <a href="LICENSE">GPL-3.0</a>
+</p>
 
-## Status
+## What PixChisel does
 
-The repository contains the complete local import-to-output workflow:
-orientation-aware thumbnails, validated batch settings, native transformation,
-safe output writing, bounded processing, cancellation, results, destination
-preflight, and native output-folder opening. macOS builds are working; Windows
-architecture is prepared but still requires platform runtime validation.
+- **Convert** JPEG, PNG, and WebP images into another supported format.
+- **Compress** images with fidelity-first Standard or smaller Maximum output.
+- **Resize** by width, height, percentage, or bounding box while preserving
+  proportions and physical resolution metadata where supported.
+- Process multiple images or complete folders in one local batch.
+- Create non-destructive copies or intentionally replace original files.
+- Keep image data on the computer at every stage of the workflow.
 
-## Technology
+## Download
 
-- Tauri 2 and Rust for native capabilities and image processing
-- React and TypeScript for the interface and local UI state
-- Vite for frontend development and builds
-- npm for JavaScript package management
+Download the latest available build from the
+[GitHub Releases page](https://github.com/beljafc7/pixchisel/releases).
 
-## Prerequisites
+PixChisel 0.5.0 is the first public preview. The current macOS DMG is an Intel
+`x86_64` build; Apple Silicon Macs can run it through Rosetta. A native Apple
+Silicon build and Windows installer will follow after platform-specific
+validation.
+
+Early builds may not yet be signed or notarized. Your operating system can
+therefore ask you to confirm that you trust the downloaded application.
+
+## How it works
+
+1. Add individual images or a folder.
+2. Choose Convert, Compress, or Resize.
+3. Adjust the task options.
+4. Choose Create Copies or Replace Originals.
+5. Process the batch and review the result locally.
+
+When Create Copies is selected, images from one source location are written to
+a `PixChisel Copies` subfolder. Batches containing images from multiple source
+locations ask for one shared output folder.
+
+## Privacy and security
+
+PixChisel has no account system, backend, cloud storage, analytics, or telemetry.
+Images are decoded and transformed locally. Temporary thumbnail sessions are
+cleaned automatically and stale abandoned sessions are pruned when the app
+starts.
+
+The desktop webview uses a restrictive Content Security Policy, and native
+capabilities are limited to the operations required by the application.
+
+Please report security concerns privately through
+[GitHub Security Advisories](https://github.com/beljafc7/pixchisel/security/advisories/new).
+See [SECURITY.md](SECURITY.md) for the disclosure policy.
+
+## Build from source
 
 Install the current prerequisites from the
-[Tauri setup guide](https://v2.tauri.app/start/prerequisites/) for your operating
-system, plus:
-
-- Node.js with npm
-- Rust with Cargo
-
-## Development
+[Tauri setup guide](https://v2.tauri.app/start/prerequisites/), plus Node.js,
+npm, Rust, and Cargo.
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-Run only the browser-based UI during interface work:
+Create a local production bundle with:
 
 ```sh
-npm run dev
+npm run tauri build
 ```
 
-## Validation
+Run the validation suite with:
 
 ```sh
 npm test
 npm run build
 npm run version:check
+cargo test --manifest-path src-tauri/Cargo.toml --locked
 cargo check --manifest-path src-tauri/Cargo.toml --locked
 ```
 
-## Versioning
+## Technology
 
-PixChisel uses semantic versions in `MAJOR.MINOR.PATCH` form. `package.json` is
-the canonical version source; Tauri and Cargo version fields are synchronized
-from it.
-
-Prepare an intentional pre-1.0 release with one of:
-
-```sh
-npm run release:patch
-npm run release:minor
-```
-
-The major command also exists for the eventual 1.0 release:
-
-```sh
-npm run release:major
-```
-
-These commands update version metadata but deliberately create no Git tag or
-release. Use `npm run version:check` to verify alignment, or
-`npm run version:sync` after intentionally editing the canonical version.
+- Tauri 2 and Rust for native integration and image processing
+- React and TypeScript for the interface
+- Vite for frontend development and production builds
 
 ## Project documentation
 
-- [Project rules](docs/PROJECT_RULES.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Release guide](docs/RELEASING.md)
 - [Product specification](docs/PRODUCT_SPEC.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
-
-## Privacy principles
-
-- Images are processed locally and never uploaded.
-- The application requires no account or backend.
-- Telemetry and analytics are absent by default.
-- Network-dependent product features are outside the core architecture.
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Rust dependency licenses](THIRD_PARTY_LICENSES.html)
+- [npm dependency licenses](THIRD_PARTY_NPM_LICENSES.html)
 
 ## License
 
-PixChisel is free to download and use for personal and commercial work.
-PixChisel is proprietary software; source-code reuse, modified redistribution,
-resale, rebranding, and trademark rights are not granted. See [LICENSE](LICENSE)
-for details and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency
-attributions and release-notice requirements.
+PixChisel is free and open-source software licensed under the
+[GNU General Public License v3.0 only](LICENSE). You may use, study, modify, and
+redistribute it under those terms. Distributed modified versions must provide
+their corresponding source code under GPL v3.0.
+
+The GPL does not grant permission to imply endorsement or use the PixChisel name
+and logo for a modified product. See [TRADEMARKS.md](TRADEMARKS.md).
