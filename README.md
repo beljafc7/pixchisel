@@ -29,12 +29,17 @@
 
 ## Download
 
-Download the latest available version from
-[Download PixChisel for macOS](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel_0.5.0_x64.dmg)
+Choose the build that matches your Mac:
 
-PixChisel 0.5.0 is currently available as a macOS Intel build. It also runs on
-Apple Silicon through Rosetta. Native Apple Silicon and Windows downloads are
-coming next.
+- **Apple Silicon (M1, M2, M3, M4, or newer):**  
+  [Download PixChisel 0.5.0 for Apple Silicon](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel-0.5.0-macOS-Apple-Silicon-arm64.dmg)
+
+- **Intel Mac:**  
+  [Download PixChisel 0.5.0 for Intel](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel-0.5.0-macOS-Intel-x64.dmg)
+
+> These preview builds are not yet signed or notarized.
+
+Windows support is coming next.
 
 Developer and contributor information is available in the
 [Technical README](TECHNICAL_README.md).
