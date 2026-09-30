@@ -29,17 +29,22 @@
 
 ## Download
 
-Choose the build that matches your Mac:
+Choose the build that matches your operating system:
+
+### macOS
 
 - **Apple Silicon (M1, M2, M3, M4, or newer):**  
-  [Download PixChisel 0.5.0 for Apple Silicon](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel-0.5.0-macOS-Apple-Silicon-arm64.dmg)
+  [Download PixChisel 0.5.0 for Apple Silicon](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel_0.5.0_aarch64.dmg)
 
 - **Intel Mac:**  
-  [Download PixChisel 0.5.0 for Intel](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel-0.5.0-macOS-Intel-x64.dmg)
+  [Download PixChisel 0.5.0 for Intel](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel_0.5.0_x64.dmg)
 
-> These preview builds are not yet signed or notarized.
+### Windows
 
-Windows support is coming next.
+- **Windows 10/11, 64-bit:**  
+  [Download PixChisel 0.5.0 for Windows](https://github.com/beljafc7/pixchisel/releases/download/V0.5.0/PixChisel_0.5.0_x64-setup.exe)
+
+> **Preview notice:** These builds are not yet signed or notarized. macOS Gatekeeper or Windows SmartScreen may display a security warning during installation.
 
 Developer and contributor information is available in the
 [Technical README](TECHNICAL_README.md).
